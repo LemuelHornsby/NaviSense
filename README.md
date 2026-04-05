@@ -1,2 +1,2 @@
 # NaviSense
-MArine Autonomy
+Marine Autonomy
