@@ -157,10 +157,3 @@ These technologies reflect the current stack described in the technical specific
 
 The goal is not only to animate a vessel in a scene, but to build a **modular marine autonomy simulator platform** that can support research, testing, replay, scenario design, and future product development. The reference documents explicitly position NaviSense as a Unity-based marine autonomy simulation platform for control development, reinforcement learning validation, scenario evaluation, and commercial pilot demonstrations.
 
----
-
-## 📌 Status Snapshot
-
-> **Current milestone:** Unity is successfully streaming structured sensor packets to Python over TCP, establishing a verified baseline for the simulator bridge.
-
-This is an important foundation for everything that comes next: typed APIs, replay, metrics, scenarios, UI, and more advanced autonomy workflows.
