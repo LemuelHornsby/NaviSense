@@ -23,8 +23,6 @@ A high-fidelity Unity-based marine vessel simulation platform for autonomy resea
 
 ---
 
-
-
 ## What is NaviSense?
 
 NaviSense Simulator is a research-grade digital twin for marine vessels — built for the engineers, scientists, and institutions developing the next generation of autonomous maritime systems.
@@ -76,35 +74,6 @@ It bridges Unity's real-time physics engine with Python's AI/ML ecosystem over a
 - Unity owns: heave (Y), roll, pitch — governed by live hydrostatics physics
 
 ---
-
-┌─────────────────────────────────────────────┐
-│              Unity Simulation               │
-│                                             │
-│  ┌──────────────┐   ┌────────────────────┐  │
-│  │ Hydrostatics │   │  Wave Physics      │  │
-│  │ Controller   │   │  (Crest Ocean)     │  │
-│  └──────┬───────┘   └────────┬───────────┘  │
-│         │                    │              │
-│  ┌──────▼────────────────────▼───────────┐  │
-│  │         ActuatorController            │  │
-│  │  Propulsion · Rudder · Bow Thruster   │  │
-│  └──────────────────┬────────────────────┘  │
-│                     │                       │
-│  ┌──────────────────▼────────────────────┐  │
-│  │         PythonBridgeManager           │  │
-│  │    TCP :5005 · JSON · 5Hz streaming   │  │
-│  └──────────────────┬────────────────────┘  │
-└─────────────────────┼───────────────────────┘
-                      │ TCP Bidirectional
-┌─────────────────────▼───────────────────────┐
-│              Python AI Stack                │
-│                                             │
-│  ┌────────────┐  ┌───────────┐  ┌────────┐  │
-│  │ Gymnasium  │  │ Stable    │  │PyTorch │  │
-│  │ Custom Env │  │ Baselines3│  │ Models │  │
-│  └────────────┘  └───────────┘  └────────┘  │
-└─────────────────────────────────────────────┘
-
 
 ## Features
 
