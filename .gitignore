@@ -1,0 +1,47 @@
+# ===== NaviSense UE5 workspace .gitignore =====
+# Unreal generated / transient — never commit
+NaviSense_UE5/Binaries/
+NaviSense_UE5/Build/
+NaviSense_UE5/DerivedDataCache/
+NaviSense_UE5/Intermediate/
+NaviSense_UE5/Saved/
+NaviSense_UE5/.vs/
+NaviSense_UE5/*.sln
+NaviSense_UE5/*.VC.db
+NaviSense_UE5/*.opensdf
+NaviSense_UE5/*.sdf
+NaviSense_UE5/*.suo
+
+# Cesium request cache (large, machine-local) anywhere
+**/cesium-request-cache.sqlite
+**/*.sqlite-shm
+**/*.sqlite-wal
+**/*.sqlite-journal
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Run outputs / logs
+logs/
+**/Saved/NaviSense_Reports/
+
+# OS cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Keep folder placeholders
+!**/.keep
+
+# ===== added 2026-07-14 (WP_20260714C, off-machine backup scope) =====
+# Demo film outputs — large regenerable video (~2.4 GB); kept on HDD/cloud, NOT in git
+Demo/film/
+!Demo/film/.gitkeep
+# Rhino auto-backup — 339 MB, redundant with the .3dm source
+*.3dmbak
