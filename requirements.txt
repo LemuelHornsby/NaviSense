@@ -1,0 +1,10 @@
+# NaviSense UE5 — Python bridge / plant / control stack
+# Create a venv, then: pip install -r requirements.txt
+numpy>=1.24
+pyyaml>=6.0
+matplotlib>=3.7        # analysis/plots (analyse_*.py)
+
+# --- Optional, only for advanced autopilots (install if you use them) ---
+# casadi>=3.6           # python/autopilot/nmpc.py
+# torch>=2.0            # python/autopilot/ppo_controller.py
+# stable-baselines3     # python/autopilot/train_ppo.py

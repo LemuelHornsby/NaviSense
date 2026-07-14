@@ -1,0 +1,21 @@
+{
+  "bowThrusterCmdNorm": 0.0,
+  "bowThrusterNorm": 0.0,
+  "mode": "auto",
+  "portRpm": 900.0,
+  "portRpmCmd": 900.0,
+  "r": 0.01,
+  "rudderCmdDeg": 5.0,
+  "rudderDeg": 5.0,
+  "runId": "golden-run",
+  "schema": "navisense.state.v1",
+  "starboardRpm": 900.0,
+  "starboardRpmCmd": 900.0,
+  "t": 1.5,
+  "u": 4.0,
+  "v": 0.1,
+  "x": 10.0,
+  "y": 0.0,
+  "yawDeg": 45.0,
+  "z": 20.0
+}

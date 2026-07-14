@@ -1,0 +1,129 @@
+// Copyright NaviSyn Marine Solutions.
+// =====================================================================
+// ANaviSenseShipPawn — the own-ship. Pose-receive mode (parity path) applies
+// x,y,yaw from the bridge with smoothing; native-physics/manual modes apply
+// forces from the actuator component (offline). Mirrors Unity's
+// YachtPoseApplier. Master Guide: Section 7 (and Section 8 for the bridge).
+// =====================================================================
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Pawn.h"
+#include "Bridge/NaviSenseBridgeTypes.h"
+#include "NaviSenseShipPawn.generated.h"
+
+class UStaticMeshComponent;
+class UActuatorComponent;
+class UNaviSenseBridgeComponent;
+class USensorBundleComponent;
+class UNaviSenseVesselProfile;
+class USpringArmComponent;
+class UCameraComponent;
+
+UENUM(BlueprintType)
+enum class ENaviSenseMotionSource : uint8
+{
+    PoseReceive,    // bridge is authoritative (parity path)
+    NativePhysics,  // offline: forces from actuators
+    Manual          // offline: keyboard/gamepad -> actuators -> forces
+};
+
+UCLASS()
+class NAVISENSE_API ANaviSenseShipPawn : public APawn
+{
+    GENERATED_BODY()
+
+public:
+    ANaviSenseShipPawn();
+
+    virtual void BeginPlay() override;
+    virtual void Tick(float Dt) override;
+    virtual void SetupPlayerInputComponent(UInputComponent* Input) override;
+
+    UPROPERTY(EditAnywhere, Category = "NaviSense")
+    ENaviSenseMotionSource MotionSource = ENaviSenseMotionSource::PoseReceive;
+
+    UPROPERTY(EditAnywhere, Category = "NaviSense")
+    TObjectPtr<UNaviSenseVesselProfile> VesselProfile;
+
+    // ---- Components ----
+    UPROPERTY(VisibleAnywhere, Category = "NaviSense") TObjectPtr<UStaticMeshComponent> Hull;
+    UPROPERTY(VisibleAnywhere, Category = "NaviSense") TObjectPtr<UActuatorComponent> Actuators;
+    UPROPERTY(VisibleAnywhere, Category = "NaviSense") TObjectPtr<UNaviSenseBridgeComponent> Bridge;
+    UPROPERTY(VisibleAnywhere, Category = "NaviSense") TObjectPtr<USensorBundleComponent> Sensors;
+    UPROPERTY(VisibleAnywhere, Category = "NaviSense") TObjectPtr<USpringArmComponent> SpringArm;
+    UPROPERTY(VisibleAnywhere, Category = "NaviSense") TObjectPtr<UCameraComponent> Camera;
+
+    /** Called by the bridge when a state.v1 packet arrives (GAME THREAD only). */
+    void ApplyOwnShipState(const FNaviSenseState& S);
+
+    // ---- True own-ship kinematics for sensor models (game thread) ----
+    /** Body-frame velocity cm/s (x=surge, y=sway). */
+    FORCEINLINE FVector GetBodyVelocityCmPerSec() const { return BodyVelCmPerSec; }
+    /** Yaw rate, deg/s. */
+    FORCEINLINE double GetYawRateDegPerSec() const { return YawRateDeg; }
+    /** Horizontal speed over ground, m/s. */
+    FORCEINLINE double GetSpeedMetersPerSec() const { return BodyVelCmPerSec.Size2D() * 0.01; }
+
+    // ---- Actuator visual rig (drives BP part meshes from FActuatorState) ----
+    /** Flip if the rudder deflects the wrong way visually. */
+    UPROPERTY(EditAnywhere, Category = "NaviSense|ActuatorViz") float RudderVisualSign = 1.f;
+    /** Flip if the propeller spins backwards visually. */
+    UPROPERTY(EditAnywhere, Category = "NaviSense|ActuatorViz") float PropellerVisualSign = 1.f;
+    /** Bow-thruster visual spin rate at full command (deg/s). */
+    UPROPERTY(EditAnywhere, Category = "NaviSense|ActuatorViz") float BowThrusterMaxSpinDegPerSec = 720.f;
+
+    // ---- Manual / native fallback (WP-6, F4): drivable with NO Python ----
+    // Not physical truth — just "the sim never demos dead". Asset-free: keys are
+    // polled from the possessing PlayerController, so no Input assets/config needed.
+    /** Forward cruise speed at full throttle (cm/s). ~8 kn ≈ 412 cm/s. */
+    UPROPERTY(EditAnywhere, Category = "NaviSense|Manual") float ManualCruiseSpeedCmS = 600.f;
+    /** Surge response toward target speed (1/s) — also acts as drag. */
+    UPROPERTY(EditAnywhere, Category = "NaviSense|Manual") float ManualAccel = 0.6f;
+    /** Max yaw rate at cruise + full rudder (deg/s); scales with speed (needs way). */
+    UPROPERTY(EditAnywhere, Category = "NaviSense|Manual") float ManualMaxYawRateDeg = 12.f;
+    /** Throttle/rudder slew toward key input (per s). */
+    UPROPERTY(EditAnywhere, Category = "NaviSense|Manual") float ManualInputSlew = 2.5f;
+    /** Allow the 'M' key to toggle Manual <-> PoseReceive at runtime. */
+    UPROPERTY(EditAnywhere, Category = "NaviSense|Manual") bool bAllowManualToggleKey = true;
+
+    /** Called by the bridge when state.v1 has gone stale (link down/slow).
+     *  Freezes the pawn at its last good pose so it never drifts on missing data. */
+    void NotifyBridgeStale();
+
+    /** True while the bridge link is stale and the pawn is holding position. */
+    UFUNCTION(BlueprintPure, Category = "NaviSense")
+    bool IsBridgeStale() const { return bBridgeStale; }
+
+private:
+    // Pose interpolation targets (UE units, derived from the wire packet).
+    FVector TargetLocation = FVector::ZeroVector;
+    double  TargetYawDeg = 0.0;
+    double  TargetPitchDeg = 0.0;   // 6-DOF attitude (schema v1.2): trim
+    double  TargetRollDeg = 0.0;    // 6-DOF attitude (schema v1.2): heel
+    double  TargetHeaveCm = 0.0;    // 6-DOF heave (schema v1.3): wave Z-offset target (cm)
+    double  CurrentHeaveCm = 0.0;   // smoothed heave actually applied to Z
+    FVector BodyVelCmPerSec = FVector::ZeroVector;   // for wake/VFX (Phase 11)
+    double  YawRateDeg = 0.0;
+    bool    bHasTarget = false;
+
+    // Actuator-viz part components, resolved by name at BeginPlay (Rudder/propeller/bowthruster).
+    UPROPERTY() TObjectPtr<USceneComponent> RudderViz = nullptr;
+    UPROPERTY() TObjectPtr<USceneComponent> PropellerViz = nullptr;
+    UPROPERTY() TObjectPtr<USceneComponent> BowThrusterViz = nullptr;
+    FRotator RudderBaseRot = FRotator::ZeroRotator;
+    FRotator PropBaseRot   = FRotator::ZeroRotator;
+    FRotator BowBaseRot    = FRotator::ZeroRotator;
+    double PropSpinDeg = 0.0;
+    double BowSpinDeg  = 0.0;
+    void ResolveActuatorVizComponents();
+    void UpdateActuatorVisuals(float Dt);
+    bool    bBridgeStale = false;   // hold position; cleared by the next fresh state
+
+    // Manual-mode runtime state (WP-6).
+    void  UpdateManual(float Dt);
+    float ManualThrottle = 0.f;     // [-1,1]
+    float ManualRudder   = 0.f;     // [-1,1]
+    float ManualSpeedCmS = 0.f;
+    bool  bManualTogglePrev = false;
+};

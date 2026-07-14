@@ -1,0 +1,257 @@
+// Copyright NaviSyn Marine Solutions.
+#include "Vessel/NaviSenseShipPawn.h"
+#include "Vessel/ActuatorComponent.h"
+#include "Vessel/NaviSenseVesselProfile.h"
+#include "Bridge/NaviSenseBridgeComponent.h"
+#include "Sensors/SensorBundleComponent.h"
+#include "Core/NaviSenseCoords.h"
+#include "NaviSense.h"
+
+#include "Components/StaticMeshComponent.h"
+#include "GameFramework/SpringArmComponent.h"
+#include "Camera/CameraComponent.h"
+#include "GameFramework/PlayerController.h"
+#include "InputCoreTypes.h"
+#include "Engine/Engine.h"
+
+ANaviSenseShipPawn::ANaviSenseShipPawn()
+{
+    PrimaryActorTick.bCanEverTick = true;
+
+    Hull = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Hull"));
+    SetRootComponent(Hull);
+    Hull->SetMobility(EComponentMobility::Movable);
+
+    Actuators = CreateDefaultSubobject<UActuatorComponent>(TEXT("Actuators"));
+    Bridge    = CreateDefaultSubobject<UNaviSenseBridgeComponent>(TEXT("Bridge"));
+    Sensors   = CreateDefaultSubobject<USensorBundleComponent>(TEXT("Sensors"));
+    Bridge->SensorBundle = Sensors;   // auto-wire: sensor packets always carry IMU heading
+
+    SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
+    SpringArm->SetupAttachment(Hull);
+    SpringArm->TargetArmLength = 2500.f;
+    SpringArm->SocketOffset = FVector(0.f, 0.f, 800.f);
+    SpringArm->bEnableCameraLag = true;
+
+    Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
+    Camera->SetupAttachment(SpringArm);
+}
+
+void ANaviSenseShipPawn::BeginPlay()
+{
+    Super::BeginPlay();
+    ResolveActuatorVizComponents();
+}
+
+void ANaviSenseShipPawn::ResolveActuatorVizComponents()
+{
+    TArray<USceneComponent*> Comps;
+    GetComponents<USceneComponent>(Comps);
+    for (USceneComponent* C : Comps)
+    {
+        if (!C) { continue; }
+        const FString N = C->GetName().ToLower();
+        if (!RudderViz && N.Contains(TEXT("rudder")))
+        {
+            RudderViz = C; RudderBaseRot = C->GetRelativeRotation();
+        }
+        else if (!PropellerViz && N.Contains(TEXT("propeller")))
+        {
+            PropellerViz = C; PropBaseRot = C->GetRelativeRotation();
+        }
+        else if (!BowThrusterViz && N.Contains(TEXT("bow")))
+        {
+            BowThrusterViz = C; BowBaseRot = C->GetRelativeRotation();
+        }
+    }
+    UE_LOG(LogNaviSense, Display, TEXT("ActuatorViz resolved: rudder=%s propeller=%s bow=%s"),
+        RudderViz ? TEXT("ok") : TEXT("MISSING"),
+        PropellerViz ? TEXT("ok") : TEXT("MISSING"),
+        BowThrusterViz ? TEXT("ok") : TEXT("MISSING"));
+}
+
+void ANaviSenseShipPawn::UpdateActuatorVisuals(float Dt)
+{
+    if (!Actuators) { return; }
+    const FActuatorState& St = Actuators->State;
+
+    // Rudder: absolute deflection about its local vertical (yaw), preserving authored base.
+    if (RudderViz)
+    {
+        const double MaxRud = VesselProfile ? VesselProfile->RudderMaxDeg : 35.0;
+        const double Ang = RudderVisualSign * FMath::Clamp(St.RudderDeg, -MaxRud, MaxRud);
+        RudderViz->SetRelativeRotation(RudderBaseRot);
+        RudderViz->AddLocalRotation(FRotator(0.0, Ang, 0.0));
+    }
+
+    // Propeller: continuous spin about its local shaft axis (roll), rate from avg RPM.
+    if (PropellerViz)
+    {
+        const double AvgRpm = 0.5 * (St.PortRpm + St.StarboardRpm);
+        PropSpinDeg = FMath::Fmod(PropSpinDeg + PropellerVisualSign * (AvgRpm / 60.0) * 360.0 * Dt, 360.0);
+        PropellerViz->SetRelativeRotation(PropBaseRot);
+        PropellerViz->AddLocalRotation(FRotator(0.0, 0.0, PropSpinDeg));
+    }
+
+    // Bow thruster: spin proportional to commanded normalised thrust.
+    if (BowThrusterViz)
+    {
+        BowSpinDeg = FMath::Fmod(BowSpinDeg + St.BowThrusterNorm * BowThrusterMaxSpinDegPerSec * Dt, 360.0);
+        BowThrusterViz->SetRelativeRotation(BowBaseRot);
+        BowThrusterViz->AddLocalRotation(FRotator(0.0, 0.0, BowSpinDeg));
+    }
+}
+
+void ANaviSenseShipPawn::ApplyOwnShipState(const FNaviSenseState& S)
+{
+    // Convert wire (m, Y-up) -> UE (cm, Z-up). Single source of truth.
+    TargetLocation   = FNaviSenseCoords::WireToUE(S.x, S.y, S.z);
+    TargetYawDeg     = FNaviSenseCoords::WireYawToUE(S.yawDeg);
+    TargetPitchDeg   = FNaviSenseCoords::WirePitchToUE(S.pitchDeg);
+    TargetRollDeg    = FNaviSenseCoords::WireRollToUE(S.rollDeg);
+    TargetHeaveCm    = FNaviSenseCoords::WireHeaveToUE(S.heaveM);
+    BodyVelCmPerSec  = FVector(S.u, S.v, 0.0) * FNaviSenseCoords::M_TO_CM;
+    YawRateDeg       = FNaviSenseCoords::YawRateRadToDeg(S.r);
+    bHasTarget       = true;
+    bBridgeStale     = false;   // fresh data — resume normal pose tracking
+
+    if (Actuators)
+    {
+        Actuators->SetFromState(S);   // push actual + commanded for rig + HUD
+    }
+}
+
+void ANaviSenseShipPawn::NotifyBridgeStale()
+{
+    // Snap the interpolation target to where we are right now and zero the
+    // motion state, so a missing/late plant stream can never make the pawn
+    // coast, overshoot, or drift. It simply holds until fresh state arrives.
+    bBridgeStale    = true;
+    TargetLocation  = GetActorLocation();
+    TargetYawDeg    = GetActorRotation().Yaw;
+    TargetPitchDeg  = GetActorRotation().Pitch;
+    TargetRollDeg   = GetActorRotation().Roll;
+    TargetHeaveCm   = CurrentHeaveCm;   // freeze the bob where it is (no drift)
+    BodyVelCmPerSec = FVector::ZeroVector;
+    YawRateDeg      = 0.0;
+    UE_LOG(LogNaviSense, Warning, TEXT("Bridge stale — pawn holding position."));
+}
+
+void ANaviSenseShipPawn::Tick(float Dt)
+{
+    Super::Tick(Dt);
+
+    // Runtime fallback toggle: tap 'M' to flip Manual <-> PoseReceive so a dead
+    // Python bridge never means a dead demo (WP-6, F4).
+    if (bAllowManualToggleKey)
+    {
+        if (APlayerController* PC = Cast<APlayerController>(GetController()))
+        {
+            const bool bM = PC->IsInputKeyDown(EKeys::M);
+            if (bM && !bManualTogglePrev)
+            {
+                MotionSource = (MotionSource == ENaviSenseMotionSource::Manual)
+                    ? ENaviSenseMotionSource::PoseReceive
+                    : ENaviSenseMotionSource::Manual;
+                if (MotionSource == ENaviSenseMotionSource::Manual)
+                {
+                    ManualSpeedCmS = BodyVelCmPerSec.X;   // seed from last known: no jolt
+                }
+                if (GEngine)
+                {
+                    GEngine->AddOnScreenDebugMessage(7702, 2.5f, FColor::Cyan,
+                        FString::Printf(TEXT("NaviSense motion: %s"),
+                            MotionSource == ENaviSenseMotionSource::Manual
+                                ? TEXT("MANUAL (W/S throttle, A/D rudder)")
+                                : TEXT("POSE-RECEIVE (bridge)")));
+                }
+            }
+            bManualTogglePrev = bM;
+        }
+    }
+
+    if (MotionSource == ENaviSenseMotionSource::PoseReceive && bHasTarget)
+    {
+        const float Lerp = VesselProfile ? VesselProfile->PoseLerpSpeed : 12.f;
+
+        // Smooth XY toward the bridge target; ride the wave-driven heave on Z
+        // (schema v1.3). Sampling the *rendered* UE water surface is F1 pt3.
+        // Master Guide Section 7.3.
+        FVector Loc = FMath::VInterpTo(GetActorLocation(), TargetLocation, Dt, Lerp);
+        CurrentHeaveCm = FMath::FInterpTo(CurrentHeaveCm, TargetHeaveCm, Dt, Lerp);
+        Loc.Z = TargetLocation.Z + (VesselProfile ? VesselProfile->FreeboardCm : 150.0) + CurrentHeaveCm;
+
+        // SHORTEST-ANGLE rotation smoothing. FMath::FInterpTo on a raw Yaw scalar
+        // spins the long way once heading passes +/-180 deg: the actor yaw is
+        // normalized to [-180,180] but WireYawToUE returns [0,360), so past 180 deg
+        // FInterpTo chases a ~360 deg gap that normalization keeps reopening and the
+        // hull spins on the spot for the rest of any turn that accumulates >180 deg
+        // of heading (e.g. a turning circle). RInterpTo builds a NORMALIZED delta
+        // rotator, so each axis takes the short path. The wire->UE sign/axis mapping
+        // still lives only in NaviSenseCoords (invariant #1). (KI-018)
+        const FRotator TargetRot(TargetPitchDeg, TargetYawDeg, TargetRollDeg);  // (Pitch,Yaw,Roll)
+        const FRotator Rot = FMath::RInterpTo(GetActorRotation(), TargetRot, Dt, Lerp);
+
+        SetActorLocationAndRotation(Loc, Rot);
+    }
+    else if (MotionSource == ENaviSenseMotionSource::Manual)
+    {
+        UpdateManual(Dt);   // keyboard-driven kinematic fallback
+    }
+
+    UpdateActuatorVisuals(Dt);
+}
+
+void ANaviSenseShipPawn::UpdateManual(float Dt)
+{
+    // Poll keys straight off the possessing controller — no Input assets needed.
+    float ThrTarget = 0.f, RudTarget = 0.f;
+    if (APlayerController* PC = Cast<APlayerController>(GetController()))
+    {
+        if (PC->IsInputKeyDown(EKeys::W) || PC->IsInputKeyDown(EKeys::Up))    { ThrTarget += 1.f; }
+        if (PC->IsInputKeyDown(EKeys::S) || PC->IsInputKeyDown(EKeys::Down))  { ThrTarget -= 1.f; }
+        if (PC->IsInputKeyDown(EKeys::D) || PC->IsInputKeyDown(EKeys::Right)) { RudTarget += 1.f; }
+        if (PC->IsInputKeyDown(EKeys::A) || PC->IsInputKeyDown(EKeys::Left))  { RudTarget -= 1.f; }
+    }
+
+    // Slew inputs, then a first-order surge toward throttle*cruise (drag built in).
+    ManualThrottle = FMath::FInterpTo(ManualThrottle, ThrTarget, Dt, ManualInputSlew);
+    ManualRudder   = FMath::FInterpTo(ManualRudder,   RudTarget, Dt, ManualInputSlew);
+    const float TargetSpeed = ManualThrottle * ManualCruiseSpeedCmS;
+    ManualSpeedCmS = FMath::FInterpTo(ManualSpeedCmS, TargetSpeed, Dt, ManualAccel);
+
+    // Yaw needs way: scale max yaw rate by current speed fraction.
+    const float SpeedFrac = (ManualCruiseSpeedCmS > 1.f)
+        ? FMath::Clamp(FMath::Abs(ManualSpeedCmS) / ManualCruiseSpeedCmS, 0.f, 1.f) : 0.f;
+    const float YawRate = ManualRudder * ManualMaxYawRateDeg * SpeedFrac;   // deg/s
+
+    FRotator Rot = GetActorRotation();
+    Rot.Yaw += YawRate * Dt;
+
+    // Advance along facing (UE +X = heading 0 = North), hold at the waterline.
+    const FVector Fwd = FRotationMatrix(FRotator(0.f, Rot.Yaw, 0.f)).GetUnitAxis(EAxis::X);
+    FVector Loc = GetActorLocation() + Fwd * (ManualSpeedCmS * Dt);
+    Loc.Z = (VesselProfile ? VesselProfile->FreeboardCm : 150.0);
+    SetActorLocationAndRotation(Loc, Rot);
+
+    // Publish kinematics for sensors/VFX and feed the actuator-viz rig.
+    BodyVelCmPerSec = FVector(ManualSpeedCmS, 0.f, 0.f);
+    YawRateDeg      = YawRate;
+    if (Actuators)
+    {
+        FNaviSenseState S;
+        S.u            = ManualSpeedCmS * 0.01;   // m/s
+        S.r            = FMath::DegreesToRadians(YawRate);
+        S.rudderDeg    = ManualRudder * (VesselProfile ? VesselProfile->RudderMaxDeg : 35.0);
+        S.portRpm      = ManualThrottle * 900.0;
+        S.starboardRpm = S.portRpm;
+        Actuators->SetFromState(S);
+    }
+}
+
+void ANaviSenseShipPawn::SetupPlayerInputComponent(UInputComponent* Input)
+{
+    Super::SetupPlayerInputComponent(Input);
+    // Enhanced Input bindings (throttle/rudder/bow/camera) are wired in Phase 4
+    // / Phase 10. Left intentionally empty here so the class compiles standalone.
+}

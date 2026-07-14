@@ -1,0 +1,22 @@
+// Copyright NaviSyn Marine Solutions.
+#include "Core/NaviSenseSimSubsystem.h"
+#include "NaviSense.h"
+#include "Engine/GameInstance.h"
+#include "Engine/World.h"
+#include "Stats/Stats.h"
+
+void UNaviSenseSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+    Super::Initialize(Collection);
+    bInitialized = true;
+    // Begin a default run so the clock ticks out of the box (manual mode, tests).
+    // The bridge re-stamps this with Python's RunId on connect to align t-origins.
+    StartRun(RunId);
+    UE_LOG(LogNaviSense, Display,
+        TEXT("Sim subsystem up. RunId=%s Mode=%s fixedStep=%.4fs"),
+        *RunId, *Mode, FixedStepSeconds);
+}
+
+void UNaviSenseSimSubsystem::Deinitialize()
+{
+    bRunAct

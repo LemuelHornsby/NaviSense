@@ -1,0 +1,44 @@
+// Copyright NaviSyn Marine Solutions.
+// =====================================================================
+// UNaviSenseSimSubsystem — run lifecycle owner (GameInstance subsystem).
+// Holds the authoritative RunId, Mode, geo-origin, and the sim clock the
+// bridge 't' field uses. Master Guide: Section 3.3 + Phase 1.
+//
+// WP-4 (F5): the clock is now a PAUSE-AWARE, TICK-ACCUMULATED, FIXED-STEP
+// sim clock (not wall-clock):
+//   * FTickableGameObject drives it; IsTickableWhenPaused()==false means a
+//     PIE pause freezes sim time (no wall-clock drift across a pause).
+//   * A fixed-step accumulator advances an integer StepCount in
+//     FixedStepSeconds increments — the deterministic spine that replay (W7)
+//     and "both ends log the same t" depend on.
+//   * Run lifecycle: StartRun(RunId) resets the clock and stamps the id so
+//     UE and Python share one t-origin per run; StopRun() freezes it.
+// =====================================================================
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/GameInstanceSubsystem.h"
+#include "Tickable.h"
+#include "NaviSenseSimSubsystem.generated.h"
+
+UCLASS()
+class NAVISENSE_API UNaviSenseSimSubsystem : public UGameInstanceSubsystem, public FTickableGameObject
+{
+    GENERATED_BODY()
+
+public:
+    virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+    virtual void Deinitialize() override;
+
+    // ---- Run lifecycle --------------------------------------------------
+
+    /** Begin a run: adopt InRunId, reset the clock to zero, mark active.
+     *  Idempotent if the same run id is already active. */
+    UFUNCTION(BlueprintCallable, Category = "NaviSense")
+    void StartRun(const FString& InRunId);
+
+    /** End the current run: freeze the clock (sim time stops advancing). */
+    UFUNCTION(BlueprintCallable, Category = "NaviSense")
+    void StopRun();
+
+    UFUNCTION(BlueprintPure, Category = "NaviSen

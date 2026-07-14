@@ -1,0 +1,29 @@
+# ===== NaviSense_UE5 .gitignore =====
+# Unreal Engine generated / transient folders — never commit these.
+Binaries/
+Build/
+DerivedDataCache/
+Intermediate/
+Saved/
+.vs/
+*.VC.db
+*.opensdf
+*.opendb
+*.sdf
+*.sln
+*.suo
+*.xcodeproj
+*.xcworkspace
+
+# Cesium request cache (large, machine-local) — keep it OUT of git/LFS.
+cesium-request-cache.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Keep folder placeholders
+!**/.keep

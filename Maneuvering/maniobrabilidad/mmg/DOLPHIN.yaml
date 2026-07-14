@@ -1,0 +1,120 @@
+# -----------------------------------------------------------------------------
+# MMG coefficient set for the DOLPHIN Explorer Yacht (40 m LOA)
+# -----------------------------------------------------------------------------
+#
+# Form:  Yasukawa & Yoshimura 2015 (MMG standard method for ship maneuvering
+#        predictions), 3-DOF (surge, sway, yaw) + bow thruster.
+#
+# Status of values:
+#   [Kijima]  = estimated from Kijima/Yoshimura empirical regression.
+#               Replace with PMM / free-running model / CFD once available.
+#   [design]  = from the DOLPHIN's principal-particulars spreadsheet.
+#   [assumed] = placeholder, please verify.
+#
+# Units are SI unless otherwise noted. Angles are degrees in public APIs and
+# radians internally. Prime notation X' means non-dimensional per Yasukawa
+# normalization (forces by 0.5*rho*L*d*U^2, moments by 0.5*rho*L^2*d*U^2).
+# -----------------------------------------------------------------------------
+
+ship:
+  name: "DOLPHIN Explorer 40 m"
+  # Principal particulars  ---- [design]
+  L_pp: 38.0            # length between perpendiculars, m (LOA 40, LBP estimate)
+  B: 9.0                # beam, m
+  d: 2.177              # mean draft, m
+  displacement_mass: 366000.0   # kg (366 tonnes)
+  C_b: 0.48             # block coefficient (computed from 366000 / (rho*L*B*d))
+  x_G: 0.0              # LCG measured from midship, m (+forward). Assumed midship.
+  k_zz_over_L: 0.25     # radius of gyration in yaw / L_pp (typical 0.22-0.26)
+
+  # Added mass / added moment of inertia as fractions of rigid body quantities.
+  # Will be replaced by CFD strip theory output later.
+  m_x_over_m: 0.05      # surge added mass / mass   (~5% for slender hulls) [assumed]
+  m_y_over_m: 0.80      # sway added mass / mass    (~80% for yachts)       [assumed]
+  J_zz_over_Izz: 0.12   # yaw added inertia / Izz   (~10-15%)               [assumed]
+
+# -----------------------------------------------------------------------------
+# Hull derivatives (non-dimensional, per Yasukawa-Yoshimura 2015)  ---- [Kijima]
+# -----------------------------------------------------------------------------
+# Formulas used (k = 2*d/L):
+#   Y'_v      = -(pi*k/2 + 1.4*C_b*B/L)
+#   Y'_r      = m'_x + 1.5*C_b*B/L - pi*k/4
+#   N'_v      = -k
+#   N'_r      = -(0.54*k - k^2 + 0.675*C_b*B/L - 0.1)/4     (tuned to give stable ferry)
+#   Higher-order from Kijima-Nakiri tables for Cb~0.5.
+# The numbers below assume L=38, B=9, d=2.177, Cb=0.48.  Re-run the loader's
+# `recompute_kijima()` helper to refresh if you edit principal particulars.
+hull:
+  # Linear (tuned for course-stable behavior; N_r dominant for IMO-compliant
+  # zig-zag overshoot).
+  Y_v:     -0.2700 
+  Y_r:     -0.0400   # Kijima sign convention: usually small negative for course-stable hull
+  N_v:     -0.1150
+  N_r:     -0.1200   # yaw damping tuned for 40 m yacht: T~12s, overshoot ~5-8 deg
+  # Nonlinear sway
+  Y_vvv:    -1.6500
+  Y_vvr:    -0.6500
+  Y_vrr:     0.3100
+  Y_rrr:    -0.0290
+  # Nonlinear yaw
+  N_vvv:    -0.0280
+  N_vvr:    -0.4900
+  N_vrr:    -0.0750
+  N_rrr:    -0.0700   # quadratic yaw damping to arrest hard turns
+  # Resistance (quadratic-in-u). Use Hollenbach regression or delivered power
+  # curve. Placeholder tuned to ~22 kN at 10 kn for a 40 m yacht.
+  R_0_dash: 0.0220
+
+# -----------------------------------------------------------------------------
+# Propellers (twin screw, inward-turning when viewed from astern)
+# -----------------------------------------------------------------------------
+propeller:
+  D_p: 1.10             # diameter, m       [assumed]
+  P_over_D: 1.05        # pitch ratio       [assumed]
+  # Wageningen B4-70 open-water polynomial K_T(J) = k0 + k1*J + k2*J^2
+  # (placeholder coefficients; swap for your actual prop's curve).
+  K_T_k0: 0.3700
+  K_T_k1: -0.3100
+  K_T_k2: -0.1900
+  w_P: 0.25             # Taylor wake fraction           [Kijima default]
+  t_P: 0.18             # thrust deduction factor         [Kijima default]
+  y_shaft: 1.20         # lateral distance of each shaft from centerline, m
+                        # Port shaft is at -y_shaft, starboard at +y_shaft.
+
+# -----------------------------------------------------------------------------
+# Rudder (Yasukawa-Yoshimura formulation)
+# -----------------------------------------------------------------------------
+rudder:
+  A_R: 1.80             # rudder area, m^2                [assumed]
+  h_R: 1.50             # rudder span (vertical), m       [assumed]
+  lambda_R: 1.25        # rudder aspect ratio (h_R / chord)
+  f_alpha: 2.19         # lift slope = 6.13*lambda/(lambda+2.25) = 6.13*1.25/3.5
+  t_R: 0.25             # steering resistance deduction   [Kijima default]
+  a_H: 0.30             # rudder-induced hull lift factor [Kijima default]
+  x_R_over_L: -0.500    # rudder lever from midship (aft = negative)
+  x_H_over_L: -0.464    # hull lift point                 [Kijima default]
+  eps: 1.09             # wake-ratio in propeller slipstream
+  kappa: 0.50           # slipstream contraction factor
+
+# -----------------------------------------------------------------------------
+# Bow thruster (tunnel, single)
+# -----------------------------------------------------------------------------
+bow_thruster:
+  rated_thrust_N: 35000.0     # full-command side force at zero speed [assumed]
+  x_BT: 15.0                  # longitudinal lever from CG, m (+forward)
+  effective_above_u: 2.5      # m/s: thruster effectiveness drops linearly to zero
+                              # between u = 0 and u = effective_above_u.
+                              # Rule of thumb; replace with CFD curve.
+
+# -----------------------------------------------------------------------------
+# Environment
+# -----------------------------------------------------------------------------
+environment:
+  rho_water: 1025.0     # kg/m^3
+
+# -----------------------------------------------------------------------------
+# Integrator defaults
+# -----------------------------------------------------------------------------
+integrator:
+  method: "rk4"         # rk4 | euler
+  max_substeps: 4       # split outer dt into this many RK4 steps for stability

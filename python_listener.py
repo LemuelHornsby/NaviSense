@@ -1,0 +1,760 @@
+"""NaviSense closed-loop bridge listener.
+
+Behavior:
+    1. Listen on 127.0.0.1:5005.
+    2. Accept a Unity connection (re-accepts a fresh connection after a client
+       drop so a UE PIE stop/restart does not end the listener; --once disables).
+    3. Read newline-delimited JSON sensor packets (navisense.sensor.v1) in a
+       background thread.
+    4. Tick a stub plant + demo controller at a fixed rate in the main thread.
+    5. Emit newline-delimited JSON state packets (navisense.state.v1) back to
+       Unity at that same rate.
+
+See Documents/BRIDGE_SCHEMA.md for the wire contract.
+See Documents/CLOSED_LOOP_SETUP.md for the runbook.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import socket
+import threading
+import time
+from typing import Optional
+
+from python.demo_controller import DemoController, DemoControllerParams
+from python.mmg_plant_adapter import make_mmg_plant
+from python.run_logger import RunLogger
+from python.stub_plant import StubPlant
+from python.attitude_proxy import attitude_deg
+from python.sea_state import WaveField, make_scheduled_sea_state
+from python.wave_response import wave_attitude_deg
+
+
+HOST_DEFAULT = "127.0.0.1"
+PORT_DEFAULT = 5005
+TICK_HZ_DEFAULT = 30.0
+RUN_ID_DEFAULT = "test-run"
+
+# Hard caps on the *composed* visual attitude (maneuvering heel/trim + wave
+# coupling) so the deck never dips into the sea if a hard turn coincides with a
+# wave crest. Each contributor is also clamped at source (attitude_proxy /
+# wave_response); this is the belt-and-braces cap on their sum.
+TOTAL_ROLL_CLAMP_DEG = 12.0
+TOTAL_PITCH_CLAMP_DEG = 6.0
+
+
+def _clamp(x: float, lim: float) -> float:
+    return lim if x > lim else (-lim if x < -lim else x)
+
+
+def receiver_loop(
+    conn: socket.socket,
+    stop_flag: threading.Event,
+    state_box: dict,
+    verbose: bool,
+    logger: Optional[RunLogger] = None,
+) -> None:
+    """Read sensor lines from Unity. Stores the most recent one in state_box.
+
+    If a ``RunLogger`` is supplied, every successfully-parsed sensor packet
+    is also appended to the sensor CSV. Camera packets (``navisense.camera.v1``)
+    are intentionally skipped so the logger doesn't bloat on JPEG blobs.
+    """
+    buffer = b""
+    conn.settimeout(0.2)
+    while not stop_flag.is_set():
+        try:
+            chunk = conn.recv(4096)
+            if not chunk:
+                print("[bridge] Unity closed the connection.")
+                stop_flag.set()
+                return
+            buffer += chunk
+            while b"\n" in buffer:
+                line, buffer = buffer.split(b"\n", 1)
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    msg = json.loads(line.decode("utf-8"))
+                except json.JSONDecodeError as e:
+                    print(f"[bridge] bad JSON from Unity: {e}")
+                    continue
+                schema = msg.get("schema", "")
+                if schema.startswith("navisense.sensor"):
+                    state_box["last_sensor"] = msg
+                    if logger is not None:
+                        logger.record_sensor(msg)
+                    if verbose:
+                        print(f"[bridge] RECV sensor t={msg.get('t'):.3f}")
+                elif schema.startswith("navisense.camera"):
+                    # Skip logging; camera frames are handled separately.
+                    if verbose:
+                        print(f"[bridge] RECV camera t={msg.get('t'):.3f} ({len(msg.get('jpegBase64') or '')}B)")
+                else:
+                    # Legacy v1.0 packets without a schema field still flow here.
+                    state_box["last_sensor"] = msg
+                    if logger is not None:
+                        logger.record_sensor(msg)
+        except socket.timeout:
+            continue
+        except OSError as e:
+            print(f"[bridge] socket error: {e}")
+            stop_flag.set()
+            return
+
+
+def build_state_packet(
+    t_sim: float,
+    run_id: str,
+    plant,  # StubPlant | MmgPlant (duck-typed on .state)
+    mode: str,
+    traffic=None,   # WP-15B: list of scripted AIS target wire-poses, or None
+) -> dict:
+    s = plant.state
+    # 6-DOF visual attitude (schema v1 rev 1.2): heel/trim proxy from motion.
+    # Plant stays 3-DOF; this only animates the hull (gate D2). See attitude_proxy.
+    _att_prev = getattr(plant, "_att_prev", None)
+    _du_dt = 0.0
+    if _att_prev is not None:
+        _pt, _pu = _att_prev
+        if t_sim > _pt:
+            _du_dt = (s.u - _pu) / (t_sim - _pt)
+    plant._att_prev = (t_sim, s.u)
+    att = attitude_deg(s.u, s.v, s.r, _du_dt)
+    # Heave (schema v1 rev 1.3): deterministic wave-field vertical bob sampled at
+    # the ship's horizontal position (east=x, north=z) and sim time. No field /
+    # SS0 => 0.0 => byte-identical to rev 1.2. See python/sea_state.py.
+    _wave = getattr(plant, "_wave_field", None)
+    heave_m = _wave.elevation(s.x, s.z, t_sim) if _wave is not None else 0.0
+    # Wave-coupled attitude (schema v1 rev 1.4): the SAME deterministic sea-state
+    # field induces roll/pitch from its surface slope (beam sea => roll, head sea
+    # => pitch), composed on top of the maneuvering heel/trim and clamped so the
+    # deck stays out of the sea. No field / SS0 => (0,0) => byte-identical to rev
+    # 1.3. Rides the existing rollDeg/pitchDeg wire keys (no schema/DTO change, no
+    # recompile). See python/wave_response.py.
+    _watt = wave_attitude_deg(_wave, s.x, s.z, s.yaw_deg, t_sim)
+    roll_deg = _clamp(att.roll_deg + _watt.roll_deg, TOTAL_ROLL_CLAMP_DEG)
+    pitch_deg = _clamp(att.pitch_deg + _watt.pitch_deg, TOTAL_PITCH_CLAMP_DEG)
+    pkt = {
+        "schema": "navisense.state.v1",
+        "runId": run_id,
+        "t": t_sim,
+        "x": s.x,
+        "y": s.y,
+        "z": s.z,
+        "yawDeg": s.yaw_deg,
+        "rollDeg": roll_deg,
+        "pitchDeg": pitch_deg,
+        "heaveM": heave_m,
+        "u": s.u,
+        "v": s.v,
+        "r": s.r,
+        "portRpm": s.port_rpm,
+        "starboardRpm": s.starboard_rpm,
+        "rudderDeg": s.rudder_deg,
+        "bowThrusterNorm": s.bow_thruster_norm,
+        "portRpmCmd": s.port_rpm_cmd,
+        "starboardRpmCmd": s.starboard_rpm_cmd,
+        "rudderCmdDeg": s.rudder_cmd_deg,
+        "bowThrusterCmdNorm": s.bow_thruster_cmd_norm,
+        "mode": mode,
+    }
+    # Optional environment block — present only when an MmgPlant has an
+    # EnvironmentField attached. Wind values reflect the **instantaneous**
+    # gust state so the HUD can render the variability live.
+    env = getattr(plant, "environment", None)
+    if env is not None:
+        # Instantaneous values (base + gust noise).
+        wind_speed = max(0.0, env.wind.speed_mps + env._wind_noise_mps)
+        current_speed = max(0.0, env.current.drift_mps + env._current_noise_mps)
+        pkt["env"] = {
+            "wind": {
+                "speedMps": wind_speed,
+                "directionDegFrom": env.wind.direction_from_deg,
+                "gustMps": env._wind_noise_mps,
+            },
+            "current": {
+                "speedMps": current_speed,
+                "directionDegSet": env.current.set_deg,
+                "gustMps": env._current_noise_mps,
+            },
+        }
+    # WP-15B: scripted AIS traffic for in-engine rendering. Appended AFTER the
+    # state dict literal (like env) so the B1 wire-key parity guard still sees
+    # the 22 own-ship keys only. Absent/None => byte-identical to before.
+    if traffic:
+        pkt["traffic"] = traffic
+    return pkt
+
+
+def send_line(conn: socket.socket, payload: dict) -> None:
+    line = (json.dumps(payload) + "\n").encode("utf-8")
+    conn.sendall(line)
+
+
+def run(
+    host: str,
+    port: int,
+    tick_hz: float,
+    run_id: str,
+    duration_seconds: Optional[float],
+    verbose: bool,
+    plant_kind: str = "stub",
+    plant_config: str = "DOLPHIN.yaml",
+    controller_kind: str = "demo",
+    log_dir: Optional[str] = None,
+    time_scale: float = 1.0,
+    wind_dir_deg: float = 0.0,
+    wind_mps: float = 0.0,
+    wind_gust_mps: float = 0.0,
+    current_set_deg: float = 0.0,
+    current_mps: float = 0.0,
+    current_gust_mps: float = 0.0,
+    env_seed: Optional[int] = None,
+    sea_state: int = 0,
+    wave_heading_deg: float = 0.0,
+    wave_seed: int = 1337,
+    sea_state_schedule: Optional[str] = None,
+    scenario: Optional[str] = None,
+    ais_preset: Optional[str] = None,
+    ais_target_name: Optional[str] = None,
+    path_file: Optional[str] = None,
+    goals_file: Optional[str] = None,
+    active_goal: Optional[str] = None,
+    policy_file: Optional[str] = None,
+    reaccept: bool = True,
+    initial_speed_mps: float = 0.0,
+) -> None:
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind((host, port))
+    server.listen(1)
+    server.settimeout(1.0)  # short timeout so Ctrl-C stays responsive between clients
+    print(f"[bridge] listening on {host}:{port}")
+    if reaccept:
+        print("[bridge] re-accept ON: survives a UE PIE stop/restart "
+              "(fresh run each reconnect). Pass --once for single-shot CI.")
+
+    def _serve_one_connection(conn, addr, run_id):
+        """Serve exactly ONE connected client until it disconnects (or the demo
+        duration ends). Builds a FRESH plant + controller + logger + sim clock so
+        every reconnect is a clean run. KeyboardInterrupt is NOT caught here - it
+        propagates to run() so Ctrl-C stops the whole server."""
+        # log_dir and time_scale are rebound in-place below; declare them
+        # nonlocal so this closure resolves the enclosing run() values rather
+        # than shadowing them as unassigned locals (KI-017 re-accept refactor).
+        nonlocal log_dir, time_scale
+        print(f"[bridge] Unity connected from {addr}")
+
+        if plant_kind == "mmg":
+            plant = make_mmg_plant(plant_config)
+            print(f"[bridge] plant: MMG ({plant.config.ship.name})")
+            # Attach an environment field iff any wind/current parameter is non-zero.
+            any_env = (wind_mps != 0.0 or current_mps != 0.0 or
+                       wind_gust_mps != 0.0 or current_gust_mps != 0.0)
+            if any_env:
+                from mmg.environment import make_environment
+                plant.environment = make_environment(
+                    wind_dir_deg=wind_dir_deg,
+                    wind_mps=wind_mps,
+                    wind_gust_mps=wind_gust_mps,
+                    current_set_deg=current_set_deg,
+                    current_mps=current_mps,
+                    current_gust_mps=current_gust_mps,
+                    seed=env_seed,
+                )
+                print(f"[bridge] env: wind={wind_mps:.1f} m/s @ {wind_dir_deg:.0f} deg "
+                      f"(gust+/-{wind_gust_mps:.1f}); current={current_mps:.1f} m/s set "
+                      f"{current_set_deg:.0f} (gust+/-{current_gust_mps:.1f})")
+        else:
+            plant = StubPlant()
+            print("[bridge] plant: stub (kinematic)")
+
+        # Optional running start: seed the surge speed so the vessel is already
+        # underway (e.g. COLREGS stand-on "keep speed" needs a steady speed, not a
+        # 0->cruise spin-up). Applied once at run start; 0.0 => unchanged.
+        if initial_speed_mps and initial_speed_mps > 0.0:
+            try:
+                plant.state.u = float(initial_speed_mps)
+                print(f"[bridge] running start: initial surge u={initial_speed_mps:.2f} m/s")
+            except Exception as _e:
+                print(f"[bridge] WARN could not seed initial speed: {_e}")
+
+        # Attach a deterministic sea-state wave field (schema v1.3 heave). A
+        # --sea-state-schedule builds a ScheduledSeaState (cross-faded, time-varying
+        # sea -- gate D3); otherwise a fixed WaveField. SS0 / no field => elevation 0
+        # => no behaviour change. Both duck-type the same .elevation/.slope_rad/.active
+        # interface, so build_state_packet samples them identically (no DTO/wire change).
+        if sea_state_schedule:
+            plant._wave_field = make_scheduled_sea_state(
+                sea_state_schedule, heading_deg=wave_heading_deg, seed=wave_seed)
+            print(f"[bridge] sea state SCHEDULE: {plant._wave_field.describe()} "
+                  f"(heading {wave_heading_deg:.0f} deg, seed {wave_seed}) "
+                  f"-> time-varying heave/roll/pitch on state.v1")
+        else:
+            plant._wave_field = WaveField(sea_state=sea_state, heading_deg=wave_heading_deg,
+                                          seed=wave_seed)
+            if plant._wave_field.active:
+                print(f"[bridge] sea state: SS{sea_state} (Hs~{plant._wave_field.hs:.2f} m, "
+                      f"Tp~{plant._wave_field.tp:.1f} s, heading {wave_heading_deg:.0f} deg) "
+                      f"-> heave on state.v1")
+
+        if controller_kind == "keyboard":
+            from python.keyboard_controller import KeyboardController
+            controller = KeyboardController()
+            print("[bridge] controller: keyboard (pygame window)")
+        elif controller_kind == "gamepad":
+            from python.gamepad_controller import GamepadController
+            controller = GamepadController()
+            print("[bridge] controller: gamepad (pygame joystick)")
+        elif controller_kind in ("turning_circle", "zigzag10", "zigzag20", "transit",
+                                 "avoid_head_on", "avoid_crossing", "avoid_crossing_giveway",
+                                 "avoid_standon", "avoid_crossing_standon", "avoid_overtaking"):
+            from python.scenario_controllers import make_scenario_controller
+            controller = make_scenario_controller(controller_kind)
+            print(f"[bridge] controller: scenario ({controller_kind})")
+        elif controller_kind == "waypoint":
+            from python.autopilot import WaypointFollowerController
+            if not path_file:
+                raise ValueError("--controller waypoint requires --path-file <path.json>")
+            path_abs = path_file
+            if not os.path.isabs(path_abs):
+                path_abs = os.path.join(os.path.dirname(os.path.abspath(__file__)), path_abs)
+            controller = WaypointFollowerController.from_path_file(path_abs)
+            print(f"[bridge] controller: waypoint follower (path={path_abs})")
+        elif controller_kind == "nmpc":
+            from python.autopilot import NmpcController, load_goals
+            if not goals_file:
+                raise ValueError("--controller nmpc requires --goals-file <dockgoals.json>")
+            goals_abs = goals_file
+            if not os.path.isabs(goals_abs):
+                goals_abs = os.path.join(os.path.dirname(os.path.abspath(__file__)), goals_abs)
+            goals = load_goals(goals_abs)
+            controller = NmpcController(goals, plant_config_yaml=plant_config,
+                                         active_goal_id=active_goal)
+            print(f"[bridge] controller: NMPC (goals={goals_abs}, active={controller._active.id})")
+        elif controller_kind == "ppo":
+            from python.autopilot.ppo_controller import PpoPolicyController
+            if not goals_file or not policy_file:
+                raise ValueError("--controller ppo requires --goals-file and --policy-file")
+            goals_abs = goals_file
+            if not os.path.isabs(goals_abs):
+                goals_abs = os.path.join(os.path.dirname(os.path.abspath(__file__)), goals_abs)
+            controller = PpoPolicyController(policy_file=policy_file, goals_file=goals_abs,
+                                              active_goal_id=active_goal)
+            print(f"[bridge] controller: PPO (policy={policy_file})")
+        else:
+            controller_params = DemoControllerParams()
+            if duration_seconds is not None:
+                controller_params.duration_seconds = duration_seconds
+            controller = DemoController(controller_params)
+            print("[bridge] controller: demo (sinusoidal rudder)")
+
+        # Resolve a relative log dir against the listener's project root so the
+        # behaviour is consistent regardless of which folder Python was invoked
+        # from (VS Code launch.json, Cmd, PowerShell, IDE play, etc.).
+        if log_dir and not os.path.isabs(log_dir):
+            log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), log_dir)
+
+        # When scheduled, log the state the run STARTS at (the schedule string
+        # carries the full timeline in the manifest + per-change events below).
+        eff_sea_state = (plant._wave_field.start_state
+                         if sea_state_schedule else sea_state)
+        logger = RunLogger.create(
+            log_dir=log_dir,
+            run_id=run_id,
+            plant_kind=plant_kind,
+            controller_kind=controller_kind,
+            tick_hz=tick_hz,
+            sea_state=eff_sea_state,
+            wave_heading_deg=wave_heading_deg,
+            wave_seed=wave_seed,
+            sea_state_schedule=sea_state_schedule,
+            scenario=scenario,
+            ais_preset=ais_preset,
+            ais_target_name=ais_target_name,
+        )
+        # WP-15B: render scripted AIS traffic ON THE WIRE so the placed Traffic
+        # ships move with the deterministic preset -- the SAME field the evidence
+        # pack scores post-run. Built ONCE from own-ship's start pose (the AIS
+        # world origin = own-ship east=x / north=z / heading); each tick emits
+        # constant-velocity target poses (cheap, pure arithmetic). ais_preset is
+        # also recorded in the manifest for the post-run analysis.
+        ais_field = None
+        _wire_targets = None
+        if ais_preset:
+            from python.ais_traffic import make_field as _make_field, wire_targets as _wire_targets
+            _s0 = plant.state
+            ais_field = _make_field(ais_preset, own_e0=_s0.x, own_n0=_s0.z,
+                                    own_heading_deg=_s0.yaw_deg,
+                                    target_name=ais_target_name)
+            _tn = f" target={ais_target_name}" if ais_target_name else ""
+            print(f"[bridge] AIS traffic preset: {ais_preset}{_tn} "
+                  f"({len(ais_field)} target(s)) -> rendered on the wire + evidence pack")
+
+        stop_flag = threading.Event()
+        state_box: dict = {"last_sensor": None}
+        recv_thread = threading.Thread(
+            target=receiver_loop,
+            args=(conn, stop_flag, state_box, verbose, logger),
+            daemon=True,
+        )
+        recv_thread.start()
+
+        dt = 1.0 / tick_hz
+        # time_scale > 1.0 advances sim faster than real time, useful for
+        # long manoeuvres where you don't want to wait 5+ minutes per turning
+        # circle. The plant still integrates with the same dt; we just sleep
+        # less between ticks.
+        time_scale = max(0.01, time_scale)
+        real_dt = dt / time_scale
+        if abs(time_scale - 1.0) > 1e-3:
+            print(f"[bridge] time scale: {time_scale:g}x (sim runs faster than real-time)")
+        t_sim = 0.0
+        next_tick = time.perf_counter()
+        # Gate D3: when the sea state varies at runtime, log each integer crossing
+        # to events.csv so the run log shows the switch (no wire/schema change).
+        _is_scheduled = hasattr(plant._wave_field, "sea_state_at")
+        _last_logged_ss = None
+
+        try:
+            while not stop_flag.is_set():
+                now = time.perf_counter()
+                if now < next_tick:
+                    time.sleep(max(0.0, next_tick - now))
+                next_tick += real_dt
+
+                latest_sensors = state_box.get("last_sensor")
+                # Closed-loop scenario controllers (zig-zag, turning-circle) need
+                # the ship's heading to trigger and reverse. Feed them the PLANT's
+                # authoritative yaw as a fallback so they never stall in 'approach'
+                # when the frontend sensor echo lacks IMU heading. The full inbound
+                # sensor packet is preserved for autopilots that read position/goals.
+                ctrl_view = dict(latest_sensors) if isinstance(latest_sensors, dict) else {}
+                ctrl_view["yawDeg"] = plant.state.yaw_deg
+                cmd = controller.step(t_sim, ctrl_view)
+                plant.apply_commands(
+                    port_rpm_cmd=cmd.port_rpm_cmd,
+                    starboard_rpm_cmd=cmd.starboard_rpm_cmd,
+                    rudder_cmd_deg=cmd.rudder_cmd_deg,
+                    bow_thruster_cmd_norm=cmd.bow_thruster_cmd_norm,
+                )
+                plant.step(dt)
+
+                traffic = _wire_targets(ais_field, t_sim) if ais_field is not None else None
+                packet = build_state_packet(t_sim, run_id, plant, cmd.mode, traffic=traffic)
+                try:
+                    send_line(conn, packet)
+                except OSError as e:
+                    print(f"[bridge] send failed: {e}")
+                    break
+                logger.record_state(packet)
+
+                if verbose and int(t_sim * tick_hz) % int(tick_hz) == 0:
+                    s = plant.state
+                    print(
+                        f"[bridge] t={t_sim:6.2f} "
+                        f"x={s.x:7.2f} z={s.z:7.2f} yaw={s.yaw_deg:6.2f} "
+                        f"u={s.u:5.2f} rud={s.rudder_deg:6.2f} mode={cmd.mode}"
+                    )
+
+                if _is_scheduled:
+                    _ss_now = round(plant._wave_field.sea_state_at(t_sim))
+                    if _ss_now != _last_logged_ss:
+                        _hs = plant._wave_field.hs_at(t_sim)
+                        _prev = f"SS{_last_logged_ss}" if _last_logged_ss is not None else "<init>"
+                        logger.record_event(t_sim=t_sim, name="sea_state_change",
+                                            details=f"{_prev} -> SS{_ss_now} (Hs~{_hs:.2f} m)")
+                        _last_logged_ss = _ss_now
+
+                t_sim += dt
+        finally:
+            stop_flag.set()
+            try:
+                conn.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            conn.close()
+            recv_thread.join(timeout=1.0)
+            logger.finalise()
+        return "client_disconnect"
+
+    sessions = 0
+    try:
+        while True:
+            try:
+                conn, addr = server.accept()
+            except socket.timeout:
+                continue  # no client yet; loop so Ctrl-C stays responsive
+            except OSError:
+                break
+            sessions += 1
+            session_run_id = run_id if sessions == 1 else f"{run_id}_s{sessions}"
+            if sessions > 1:
+                print(f"[bridge] --- session #{sessions}: fresh run '{session_run_id}' ---")
+            _serve_one_connection(conn, addr, session_run_id)
+            if not reaccept:
+                break
+            print("[bridge] client gone - re-accepting a new connection (Ctrl-C to stop)...")
+    except KeyboardInterrupt:
+        print("\n[bridge] Ctrl-C, shutting down.")
+    finally:
+        server.close()
+        print("[bridge] closed.")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="NaviSense closed-loop bridge listener.")
+    parser.add_argument("--host", default=HOST_DEFAULT)
+    parser.add_argument("--port", type=int, default=PORT_DEFAULT)
+    parser.add_argument("--hz", type=float, default=TICK_HZ_DEFAULT, help="State packet send rate.")
+    parser.add_argument("--run-id", default=RUN_ID_DEFAULT)
+    parser.add_argument(
+        "--target",
+        choices=["unity", "unreal"],
+        default="unity",
+        help=(
+            "Which simulator client is expected to connect. The wire protocol is "
+            "IDENTICAL for both (navisense.sensor.v1 / navisense.state.v1); this flag "
+            "only adjusts the startup banner and, when --run-id is left default, the "
+            "run-id prefix so logs are labelled by engine. Use --target unreal for the "
+            "NaviSense_UE5 build."
+        ),
+    )
+    parser.add_argument(
+        "--duration",
+        type=float,
+        default=None,
+        help="Override demo controller duration in seconds.",
+    )
+    parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument(
+        "--plant",
+        choices=["stub", "mmg"],
+        default="stub",
+        help="Which plant to drive Unity with. stub=kinematic, mmg=3-DOF dynamic.",
+    )
+    parser.add_argument(
+        "--plant-config",
+        default="DOLPHIN.yaml",
+        help="YAML config file for the MMG plant (resolved under Maneuvering/maniobrabilidad/mmg).",
+    )
+    parser.add_argument(
+        "--controller",
+        choices=["demo", "keyboard", "gamepad", "turning_circle", "zigzag10", "zigzag20",
+                 "transit", "waypoint", "nmpc", "ppo"],
+        default="demo",
+        help=(
+            "Which command source to use. demo=sinusoidal sweep, keyboard=pygame input window, "
+            "gamepad=Xbox/PS-style joystick, turning_circle=IMO hard-rudder turn, "
+            "zigzag10/zigzag20=IMO zig-zag, transit=straight steady course "
+            "(own-ship for AIS/COLREGS scenarios)."
+        ),
+    )
+    parser.add_argument(
+        "--log-dir",
+        default="logs",
+        help=(
+            "Root folder for run logs. Each run writes "
+            "<log-dir>/<run-id>_<YYYYmmdd_HHMMSS>/{sensor.csv,state.csv,events.csv,manifest.json} "
+            "and appends a one-line summary to <log-dir>/runs.csv. "
+            "Default: 'logs' (project-root-relative). Pass --no-log to disable."
+        ),
+    )
+    parser.add_argument(
+        "--no-log",
+        action="store_true",
+        help="Disable run logging entirely (overrides --log-dir).",
+    )
+    parser.add_argument(
+        "--once",
+        action="store_true",
+        help=(
+            "Exit after the first client disconnects (single-shot CI behaviour). "
+            "Default: re-accept so the listener survives a UE PIE stop/restart and "
+            "starts a fresh run on each reconnect."
+        ),
+    )
+    parser.add_argument(
+        "--time-scale",
+        type=float,
+        default=1.0,
+        help=(
+            "Sim time scale relative to wall-clock. 1.0 = real time, 2.0 = 2x "
+            "faster, 5.0 = 5x faster (great for IMO manoeuvres where you don't "
+            "want to wait 5 minutes for a turning circle). Plant integration "
+            "step stays the same; only the inter-tick sleep shrinks."
+        ),
+    )
+
+    # Environment (wind + current). All zero by default = no disturbance.
+    parser.add_argument("--wind-dir-deg", type=float, default=0.0,
+        help="Meteorological 'direction wind comes FROM' (deg). 180=south wind. Default 0.")
+    parser.add_argument("--wind-mps", type=float, default=0.0,
+        help="Mean true wind speed (m/s). 5 m/s ~ Beaufort 3. Default 0 (no wind).")
+    parser.add_argument("--wind-gust-mps", type=float, default=0.0,
+        help="Gust amplitude (m/s). 0 disables gusts.")
+    parser.add_argument("--current-set-deg", type=float, default=0.0,
+        help="Current SET (direction water flows TO, deg). 90=eastward current.")
+    parser.add_argument("--current-mps", type=float, default=0.0,
+        help="Current DRIFT (m/s). 0.5-1.5 typical for tidal channels. Default 0.")
+    parser.add_argument("--current-gust-mps", type=float, default=0.0,
+        help="Current eddy fluctuation amplitude (m/s). 0 disables.")
+    parser.add_argument("--env-seed", type=int, default=None,
+        help="Random seed for the gust noise generator. Default = unseeded.")
+
+    # Sea state (schema v1.3 heave). 0 = calm = no heave = identical to v1.2.
+    parser.add_argument("--sea-state", type=int, default=0,
+        help="Sea state 0-9 (WMO/Douglas). 0=calm/no heave (default). Raises a "
+             "deterministic wave-driven heave on state.v1 so the hull bobs on the "
+             "swell (gate D2/D3). Visual proxy; plant dynamics unchanged.")
+    parser.add_argument("--wave-heading-deg", type=float, default=0.0,
+        help="Mean direction the waves travel TOWARD (compass 0=N, 90=E). Default 0.")
+    parser.add_argument("--wave-seed", type=int, default=1337,
+        help="Seed for the deterministic wave-field phases/directions (replayable). Default 1337.")
+    parser.add_argument("--sea-state-schedule", default=None,
+        help="Runtime-varying sea state (gate D3): comma-separated t:ss set-points in "
+             "sim-seconds, e.g. \"0:1, 90:4, 180:6\". Cross-faded so the sea builds "
+             "smoothly (no jitter); OVERRIDES --sea-state. Rides the same "
+             "heave/roll/pitch wire keys (no schema change).")
+    parser.add_argument("--initial-speed", dest="initial_speed", type=float, default=0.0,
+        help="Running start: initial surge speed (m/s). 0 = start from rest. "
+             "Set by some scenarios (e.g. COLREGS stand-on) for a steady 'keep speed'.")
+    parser.add_argument("--scenario", default=None,
+        help="Named demo scenario (gate D6): sets controller + sea state in one flag "
+             "(explicit flags still override). Use '--scenario list' to print them.")
+    parser.add_argument("--target-name", default=None, metavar="LABEL",
+                        help="Swap the rendered COLREGS target ship (single-target "
+                             "presets only): the AIS target takes this exact Outliner "
+                             "label so wire/logs/evidence name the actor actually "
+                             "driven. Default: the preset's ship "
+                             "(marine_rescue_boat for the colregs_* scenarios).")
+    parser.add_argument("--ais", default=None,
+        help="Scripted AIS traffic preset (gate D4/WP-15): head_on / crossing / "
+             "overtaking / harbor_mix. Recorded in the run manifest; the evidence "
+             "pack reconstructs CPA/TCPA + COLREGS encounters from the own-ship "
+             "track. Use '--ais list' to print presets.")
+
+    parser.add_argument("--path-file", default=None,
+        help="Path JSON file (navisense.path.v1) for --controller waypoint. " +
+             "Relative paths resolve under the project root.")
+    parser.add_argument("--goals-file", default=None,
+        help="Dock goals JSON file (navisense.dockgoals.v1) for --controller nmpc / ppo. " +
+             "Export from Unity by adding DockGoalsExporter and pressing Shift+G.")
+    parser.add_argument("--active-goal", default=None,
+        help="Goal id from --goals-file to chase. Default: first goal in the file.")
+    parser.add_argument("--policy-file", default=None,
+        help="Trained PPO policy file for --controller ppo. " +
+             "Produced by python/autopilot/train_ppo.py.")
+
+    args = parser.parse_args()
+
+    # --scenario list: print the registry and exit.
+    if args.scenario and args.scenario.strip().lower() == "list":
+        from python.scenarios import format_scenarios
+        print(format_scenarios())
+        return
+    # --ais list: print the traffic presets and exit.
+    if args.ais and args.ais.strip().lower() == "list":
+        from python.ais_traffic import format_presets
+        print(format_presets())
+        return
+    # Resolve a named scenario (gate D6) into flag values. Explicit CLI flags WIN:
+    # a scenario only fills in values the operator left at their argparse defaults.
+    if args.scenario:
+        from python.scenarios import get_scenario
+        try:
+            sc = get_scenario(args.scenario)
+        except KeyError as e:
+            parser.error(str(e))
+        if args.controller == parser.get_default("controller"):
+            args.controller = sc.controller
+        if args.sea_state == parser.get_default("sea_state"):
+            args.sea_state = sc.sea_state
+        if args.sea_state_schedule == parser.get_default("sea_state_schedule"):
+            args.sea_state_schedule = sc.sea_state_schedule
+        if args.wave_heading_deg == parser.get_default("wave_heading_deg"):
+            args.wave_heading_deg = sc.wave_heading_deg
+        if args.wave_seed == parser.get_default("wave_seed"):
+            args.wave_seed = sc.wave_seed
+        if args.ais == parser.get_default("ais"):
+            args.ais = sc.ais
+        if args.initial_speed == parser.get_default("initial_speed"):
+            args.initial_speed = getattr(sc, "initial_speed_mps", 0.0)
+        # WP-20260709: a scenario may REQUIRE a plant (the COLREGS avoidance
+        # scenarios need the MMG model -- the kinematic stub replays commanded
+        # yaw and cannot depict a real avoidance maneuver, the 28-Jun footgun).
+        # An explicit --plant always wins.
+        if getattr(sc, "plant", None) and args.plant == parser.get_default("plant"):
+            args.plant = sc.plant
+            print(f"[bridge] scenario '{sc.name}' requires plant={sc.plant} "
+                  f"(pass --plant explicitly to override)")
+        _sea = (f"schedule=[{args.sea_state_schedule}]" if args.sea_state_schedule
+                else f"SS{args.sea_state}")
+        print(f"[bridge] scenario '{sc.name}': controller={args.controller}, {_sea}, "
+              f"wave-heading={args.wave_heading_deg:.0f} deg")
+    # Fail fast on an unknown AIS preset rather than deep inside the connection.
+    if args.ais:
+        from python.ais_traffic import list_presets
+        if args.ais not in list_presets():
+            parser.error(f"--ais: unknown preset '{args.ais}'. "
+                         f"Available: {', '.join(list_presets())} (or 'list').")
+    # Fail fast on a malformed schedule rather than deep inside the connection.
+    if args.sea_state_schedule:
+        from python.sea_state import parse_schedule
+        try:
+            parse_schedule(args.sea_state_schedule)
+        except ValueError as e:
+            parser.error(f"--sea-state-schedule: {e}")
+
+    # --target only affects labelling; the protocol is identical for both engines.
+    if args.run_id == RUN_ID_DEFAULT and args.target == "unreal":
+        args.run_id = "unreal-" + RUN_ID_DEFAULT
+    print(f"[bridge] target client: {args.target} "
+          f"(protocol navisense.sensor.v1 / navisense.state.v1, port {args.port})")
+    if args.target == "unreal":
+        print("[bridge] NaviSense_UE5 expected. UE connects out as the client; "
+              "this listener is the server. Coordinate frame is converted on the "
+              "UE side (see FNaviSenseCoords). Run the same controllers/plants as Unity.")
+
+    run(
+        host=args.host,
+        port=args.port,
+        tick_hz=args.hz,
+        run_id=args.run_id,
+        duration_seconds=args.duration,
+        verbose=args.verbose,
+        plant_kind=args.plant,
+        plant_config=args.plant_config,
+        controller_kind=args.controller,
+        log_dir=None if args.no_log else args.log_dir,
+        time_scale=args.time_scale,
+        wind_dir_deg=args.wind_dir_deg,
+        wind_mps=args.wind_mps,
+        wind_gust_mps=args.wind_gust_mps,
+        current_set_deg=args.current_set_deg,
+        current_mps=args.current_mps,
+        current_gust_mps=args.current_gust_mps,
+        env_seed=args.env_seed,
+        sea_state=args.sea_state,
+        wave_heading_deg=args.wave_heading_deg,
+        wave_seed=args.wave_seed,
+        sea_state_schedule=args.sea_state_schedule,
+        scenario=args.scenario,
+        ais_preset=args.ais,
+        ais_target_name=args.target_name,
+        path_file=args.path_file,
+        goals_file=args.goals_file,
+        active_goal=args.active_goal,
+        policy_file=args.policy_file,
+        reaccept=not args.once,
+        initial_speed_mps=args.initial_speed,
+    )
+
+
+if __name__ == "__main__":
+    main()
