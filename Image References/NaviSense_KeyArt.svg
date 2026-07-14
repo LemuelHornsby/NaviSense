@@ -1,0 +1,298 @@
+<svg width="100%" viewBox="0 0 1280 720" role="img" xmlns="http://www.w3.org/2000/svg" font-family="'DejaVu Sans','Helvetica Neue',Arial,sans-serif">
+<title>NaviSense — marine autonomy simulation</title>
+<desc>An autonomous explorer yacht on a realistic dusk sea with sun-glitter and swell, showing its sensor suite: radar sweep, LiDAR fan, EO/IR camera cone, forward sonar, GNSS uplink and AIS, with a telemetry and sensor-status HUD. Branded NaviSense by NaviSyn Marine Solutions.</desc>
+<defs>
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#040B16"/><stop offset="0.45" stop-color="#0A2540"/><stop offset="0.78" stop-color="#114F6B"/><stop offset="1" stop-color="#1C708A"/>
+</linearGradient>
+<radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
+<stop offset="0" stop-color="#FCE3B0" stop-opacity="0.95"/><stop offset="0.35" stop-color="#F2B45C" stop-opacity="0.55"/><stop offset="1" stop-color="#F2B45C" stop-opacity="0"/>
+</radialGradient>
+<linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#13546E"/><stop offset="0.25" stop-color="#0A2E48"/><stop offset="1" stop-color="#03101D"/>
+</linearGradient>
+<linearGradient id="hull" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#2A557A"/><stop offset="1" stop-color="#0C2238"/>
+</linearGradient>
+<linearGradient id="sweep" x1="0" y1="0" x2="1" y2="0">
+<stop offset="0" stop-color="#43E6D4" stop-opacity="0.45"/><stop offset="1" stop-color="#43E6D4" stop-opacity="0"/>
+</linearGradient>
+<radialGradient id="reflect" cx="0.5" cy="0" r="0.9">
+<stop offset="0" stop-color="#F2C078" stop-opacity="0.30"/><stop offset="1" stop-color="#F2C078" stop-opacity="0"/>
+</radialGradient>
+<clipPath id="round"><rect x="0" y="0" width="1280" height="720" rx="20"/></clipPath>
+</defs>
+
+<g clip-path="url(#round)">
+<rect x="0" y="0" width="1280" height="720" fill="url(#sky)"/>
+
+<g fill="#CFE8F2">
+<circle cx="120" cy="70" r="1.4" opacity="0.7"/><circle cx="230" cy="120" r="1" opacity="0.5"/><circle cx="340" cy="60" r="1.2" opacity="0.6"/><circle cx="520" cy="95" r="1" opacity="0.45"/><circle cx="180" cy="180" r="1" opacity="0.4"/><circle cx="980" cy="80" r="1.3" opacity="0.6"/><circle cx="1120" cy="140" r="1" opacity="0.5"/><circle cx="1200" cy="60" r="1.2" opacity="0.55"/><circle cx="760" cy="70" r="1" opacity="0.4"/><circle cx="640" cy="150" r="1" opacity="0.35"/>
+</g>
+<g fill="none" stroke="#5FC8E0" stroke-width="1" opacity="0.10">
+<path d="M-40 150 Q640 90 1320 150"/><path d="M-40 230 Q640 175 1320 230"/><path d="M-40 310 Q640 260 1320 310"/>
+<path d="M160 -20 Q150 220 160 470"/><path d="M640 -20 Q640 220 640 470"/><path d="M1120 -20 Q1130 220 1120 470"/>
+</g>
+
+<ellipse cx="845" cy="430" rx="430" ry="300" fill="url(#sun)"/>
+
+<g opacity="0.9">
+<path d="M-20 432 L120 392 L260 410 L420 372 L560 400 L720 360 L900 392 L1060 366 L1300 404 L1300 432 Z" fill="#0B2C3E"/>
+<path d="M-20 432 L150 408 L320 420 L520 398 L760 414 L1000 400 L1300 420 L1300 432 Z" fill="#0E3A4E" opacity="0.85"/>
+</g>
+<g fill="#123A4D">
+<rect x="300" y="392" width="22" height="40"/><rect x="328" y="402" width="16" height="30"/><rect x="350" y="386" width="26" height="46"/><rect x="382" y="400" width="14" height="32"/>
+<rect x="690" y="384" width="20" height="48"/><rect x="714" y="396" width="16" height="36"/><rect x="734" y="378" width="24" height="54"/><rect x="762" y="398" width="14" height="34"/>
+<rect x="980" y="394" width="18" height="38"/><rect x="1002" y="404" width="14" height="28"/><rect x="1020" y="388" width="22" height="44"/>
+<rect x="150" y="404" width="16" height="28"/><rect x="172" y="412" width="12" height="20"/>
+</g>
+<g fill="#FFD27A">
+<rect x="356" y="394" width="3" height="3" opacity="0.9"/><rect x="364" y="402" width="3" height="3" opacity="0.7"/><rect x="740" y="386" width="3" height="3" opacity="0.9"/><rect x="748" y="398" width="3" height="3" opacity="0.7"/><rect x="306" y="400" width="3" height="3" opacity="0.6"/><rect x="1026" y="396" width="3" height="3" opacity="0.8"/><rect x="724" y="404" width="3" height="3" opacity="0.6"/><rect x="990" y="402" width="3" height="3" opacity="0.6"/>
+</g>
+
+<rect x="0" y="432" width="1280" height="288" fill="url(#water)"/>
+<rect x="0" y="432" width="1280" height="20" fill="#2E6E84" opacity="0.22"/>
+<ellipse cx="845" cy="432" rx="260" ry="120" fill="url(#reflect)"/>
+
+<g stroke="#3FE0E6" stroke-width="1" opacity="0.06">
+<line x1="60" y1="720" x2="700" y2="432"/><line x1="220" y1="720" x2="700" y2="432"/><line x1="380" y1="720" x2="700" y2="432"/><line x1="540" y1="720" x2="700" y2="432"/><line x1="700" y1="720" x2="700" y2="432"/><line x1="860" y1="720" x2="700" y2="432"/><line x1="1020" y1="720" x2="700" y2="432"/><line x1="1180" y1="720" x2="700" y2="432"/><line x1="1340" y1="720" x2="700" y2="432"/><line x1="-60" y1="720" x2="700" y2="432"/>
+</g>
+<g stroke="#3FE0E6" fill="none" opacity="0.07">
+<line x1="0" y1="452" x2="1280" y2="452" stroke-width="1"/><line x1="0" y1="482" x2="1280" y2="482" stroke-width="1"/><line x1="0" y1="524" x2="1280" y2="524" stroke-width="1"/><line x1="0" y1="580" x2="1280" y2="580" stroke-width="1.2"/><line x1="0" y1="650" x2="1280" y2="650" stroke-width="1.4"/>
+</g>
+
+<g stroke-linecap="round">
+<line x1="815" y1="438" x2="875" y2="438" stroke="#FCE3B0" stroke-width="1" stroke-dasharray="1 5" opacity="0.65"/>
+<line x1="806" y1="444" x2="884" y2="444" stroke="#FBD89A" stroke-width="1" stroke-dasharray="1 6" opacity="0.6"/>
+<line x1="796" y1="452" x2="894" y2="452" stroke="#F7C97E" stroke-width="1.2" stroke-dasharray="2 6" opacity="0.6"/>
+<line x1="782" y1="462" x2="908" y2="462" stroke="#F2B45C" stroke-width="1.2" stroke-dasharray="2 7" opacity="0.55"/>
+<line x1="764" y1="474" x2="926" y2="474" stroke="#F0AE54" stroke-width="1.4" stroke-dasharray="2 8" opacity="0.5"/>
+<line x1="740" y1="488" x2="950" y2="488" stroke="#ECA64A" stroke-width="1.4" stroke-dasharray="3 9" opacity="0.45"/>
+<line x1="710" y1="504" x2="980" y2="504" stroke="#E89A4A" stroke-width="1.6" stroke-dasharray="3 10" opacity="0.4"/>
+<line x1="676" y1="522" x2="1014" y2="522" stroke="#E89A4A" stroke-width="1.6" stroke-dasharray="3 11" opacity="0.34"/>
+<line x1="638" y1="542" x2="1052" y2="542" stroke="#E3B070" stroke-width="1.8" stroke-dasharray="4 12" opacity="0.3"/>
+<line x1="594" y1="566" x2="1096" y2="566" stroke="#E0C088" stroke-width="1.8" stroke-dasharray="4 14" opacity="0.24"/>
+<line x1="546" y1="594" x2="1144" y2="594" stroke="#D8C49A" stroke-width="2" stroke-dasharray="4 16" opacity="0.2"/>
+<line x1="490" y1="626" x2="1200" y2="626" stroke="#CFC4A8" stroke-width="2" stroke-dasharray="5 18" opacity="0.16"/>
+<line x1="428" y1="662" x2="1262" y2="662" stroke="#C6C2AE" stroke-width="2" stroke-dasharray="5 20" opacity="0.12"/>
+<line x1="378" y1="700" x2="1280" y2="700" stroke="#BFC0AE" stroke-width="2" stroke-dasharray="5 22" opacity="0.1"/>
+</g>
+
+<g fill="none" stroke-linecap="round">
+<line x1="40" y1="446" x2="1240" y2="446" stroke="#2A6680" stroke-width="1" stroke-dasharray="2 8" opacity="0.16"/>
+<line x1="40" y1="458" x2="1240" y2="458" stroke="#2A6680" stroke-width="1" stroke-dasharray="2 9" opacity="0.15"/>
+<line x1="20" y1="470" x2="1260" y2="470" stroke="#2C6A84" stroke-width="1" stroke-dasharray="3 9" opacity="0.15"/>
+<line x1="20" y1="486" x2="1260" y2="486" stroke="#2C6A84" stroke-width="1" stroke-dasharray="3 10" opacity="0.14"/>
+<path d="M-40 506 q40 -3 80 0 t160 0 t160 0 t160 0 t160 0 t160 0 t160 0 t160 0 t160 0" stroke="#1E5670" stroke-width="1.2" opacity="0.33"/>
+<path d="M-100 520 q40 4 80 0 t160 0 t160 0 t160 0 t160 0 t160 0 t160 0 t160 0 t160 0" stroke="#3C7C94" stroke-width="1" opacity="0.3"/>
+<path d="M-40 536 q44 -4 88 0 t176 0 t176 0 t176 0 t176 0 t176 0 t176 0 t176 0" stroke="#1E5670" stroke-width="1.3" opacity="0.34"/>
+<path d="M-120 556 q44 5 88 0 t176 0 t176 0 t176 0 t176 0 t176 0 t176 0 t176 0" stroke="#3C7C94" stroke-width="1.1" opacity="0.32"/>
+<path d="M-40 576 q50 -5 100 0 t200 0 t200 0 t200 0 t200 0 t200 0 t200 0" stroke="#16435C" stroke-width="1.4" opacity="0.4"/>
+<path d="M-140 600 q50 6 100 0 t200 0 t200 0 t200 0 t200 0 t200 0 t200 0" stroke="#356680" stroke-width="1.3" opacity="0.4"/>
+<path d="M-40 626 q56 -6 112 0 t224 0 t224 0 t224 0 t224 0 t224 0 t224 0" stroke="#0A2A40" stroke-width="1.8" opacity="0.5"/>
+<path d="M-160 652 q56 7 112 0 t224 0 t224 0 t224 0 t224 0 t224 0 t224 0" stroke="#356680" stroke-width="1.4" opacity="0.42"/>
+<path d="M-40 680 q64 -8 128 0 t256 0 t256 0 t256 0 t256 0 t256 0" stroke="#081F31" stroke-width="2.2" opacity="0.55"/>
+<path d="M-180 706 q64 8 128 0 t256 0 t256 0 t256 0 t256 0 t256 0" stroke="#2E5E76" stroke-width="1.6" opacity="0.4"/>
+</g>
+<g fill="#EAD9B0">
+<rect x="800" y="612" width="10" height="2" rx="1" opacity="0.3"/><rect x="868" y="640" width="12" height="2" rx="1" opacity="0.28"/><rect x="900" y="600" width="8" height="2" rx="1" opacity="0.3"/><rect x="828" y="668" width="14" height="2.4" rx="1" opacity="0.26"/><rect x="912" y="654" width="10" height="2" rx="1" opacity="0.24"/><rect x="784" y="592" width="8" height="2" rx="1" opacity="0.3"/>
+</g>
+
+<g stroke-linecap="round" fill="none">
+<path d="M362 486 L150 548" stroke="#BFEEFC" stroke-width="2.5" opacity="0.16"/>
+<path d="M362 492 L176 576" stroke="#BFEEFC" stroke-width="2" opacity="0.12"/>
+<path d="M362 486 L150 548 L176 576 L362 492 Z" stroke="none" fill="#9FE4F2" opacity="0.05"/>
+</g>
+
+<g>
+<circle cx="460" cy="470" r="80" fill="none" stroke="#43E6D4" stroke-width="1" opacity="0.26"/>
+<circle cx="460" cy="470" r="134" fill="none" stroke="#43E6D4" stroke-width="1" opacity="0.17"/>
+<circle cx="460" cy="470" r="188" fill="none" stroke="#43E6D4" stroke-width="1" opacity="0.11"/>
+<path d="M460 470 L648 470 A188 188 0 0 0 593 337 Z" fill="url(#sweep)"/>
+<line x1="460" y1="470" x2="648" y2="470" stroke="#5EEAD4" stroke-width="1.6" opacity="0.6"/>
+<line x1="588" y1="344" x2="604" y2="334" stroke="#6FE0D4" stroke-width="1" opacity="0.6"/>
+<text x="607" y="333" fill="#6FE0D4" font-size="12" font-family="'DejaVu Sans Mono',monospace">RADAR · X-BAND</text>
+</g>
+
+<g stroke="#7DF0E2" stroke-width="1" opacity="0.55">
+<line x1="514" y1="448" x2="648" y2="400"/><line x1="514" y1="448" x2="664" y2="416"/><line x1="514" y1="448" x2="676" y2="434"/><line x1="514" y1="448" x2="684" y2="454"/><line x1="514" y1="448" x2="684" y2="476"/><line x1="514" y1="448" x2="676" y2="498"/><line x1="514" y1="448" x2="660" y2="518"/>
+</g>
+<g fill="#A8F4E8">
+<circle cx="648" cy="400" r="2.4"/><circle cx="664" cy="416" r="2.4"/><circle cx="676" cy="434" r="2.4"/><circle cx="684" cy="454" r="2.4"/><circle cx="684" cy="476" r="2.4"/><circle cx="676" cy="498" r="2.4"/><circle cx="660" cy="518" r="2.4"/>
+<circle cx="636" cy="408" r="1.5" opacity="0.7"/><circle cx="650" cy="426" r="1.5" opacity="0.7"/><circle cx="660" cy="446" r="1.5" opacity="0.7"/><circle cx="662" cy="466" r="1.5" opacity="0.7"/><circle cx="654" cy="486" r="1.5" opacity="0.7"/>
+</g>
+<line x1="688" y1="436" x2="704" y2="430" stroke="#7DF0E2" stroke-width="1" opacity="0.6"/>
+<text x="707" y="430" fill="#7DF0E2" font-size="12" font-family="'DejaVu Sans Mono',monospace">LiDAR · 64-LINE</text>
+
+<path d="M520 452 L712 432 L712 486 Z" fill="#9FE4F2" opacity="0.08"/>
+<path d="M520 452 L712 432 M520 452 L712 486" stroke="#9FE4F2" stroke-width="1" opacity="0.30" fill="none"/>
+<g stroke="#9FE4F2" stroke-width="0.6" opacity="0.25"><line x1="560" y1="447" x2="712" y2="443"/><line x1="560" y1="457" x2="712" y2="463"/></g>
+<g stroke="#CFF2FA" stroke-width="1" opacity="0.7"><line x1="706" y1="452" x2="718" y2="452"/><line x1="712" y1="446" x2="712" y2="458"/></g>
+<text x="707" y="502" fill="#CFF2FA" font-size="12" font-family="'DejaVu Sans Mono',monospace">EO/IR CAM · 4K</text>
+
+<path d="M474 480 L446 552 L514 552 Z" fill="#2DD4BF" opacity="0.10"/>
+<path d="M474 480 L446 552 M474 480 L514 552" stroke="#2DD4BF" stroke-width="1" opacity="0.35" fill="none"/>
+<g fill="none" stroke="#2DD4BF" opacity="0.4"><path d="M456 512 A26 26 0 0 0 492 512"/><path d="M450 528 A36 36 0 0 0 498 528"/></g>
+<text x="430" y="566" fill="#5EEAD4" font-size="12" font-family="'DejaVu Sans Mono',monospace">SONAR · FWD-LOOK</text>
+
+<line x1="459" y1="408" x2="566" y2="156" stroke="#F5C46A" stroke-width="1" stroke-dasharray="3 5" opacity="0.5"/>
+<g transform="translate(566,150)">
+<rect x="-7" y="-6" width="14" height="12" rx="2" fill="#16384F" stroke="#F5C46A" stroke-width="1"/>
+<rect x="-22" y="-4" width="12" height="8" fill="#1E4E66" stroke="#6FA0B6" stroke-width="0.6"/><rect x="10" y="-4" width="12" height="8" fill="#1E4E66" stroke="#6FA0B6" stroke-width="0.6"/>
+<path d="M0 6 L-7 18 L7 18 Z" fill="#F5C46A" opacity="0.25"/>
+</g>
+<text x="582" y="146" fill="#F5C46A" font-size="12" font-family="'DejaVu Sans Mono',monospace">GNSS-RTK</text>
+
+<g fill="none">
+<path d="M580 470 C636 452 690 446 748 440" stroke="#5EEAD4" stroke-width="2" stroke-dasharray="2 9" stroke-linecap="round" opacity="0.85"/>
+</g>
+<g>
+<circle cx="636" cy="456" r="4.5" fill="#0A2540" stroke="#5EEAD4" stroke-width="1.6"/>
+<circle cx="694" cy="447" r="4.5" fill="#0A2540" stroke="#5EEAD4" stroke-width="1.6"/>
+<circle cx="748" cy="440" r="6" fill="#0A2540" stroke="#5EEAD4" stroke-width="1.8"/>
+<path d="M748 440 L748 422 L764 428 L748 434" fill="#5EEAD4"/>
+<text x="757" y="456" fill="#9FE3D8" font-size="13" font-family="'DejaVu Sans Mono',monospace">BERTH · WP-04</text>
+</g>
+
+<g font-family="'DejaVu Sans Mono',monospace">
+<g transform="translate(612,508)"><path d="M0 -8 L8 0 L0 8 L-8 0 Z" fill="#0A2540" stroke="#43E6D4" stroke-width="1.4"/><text x="13" y="4" fill="#7FC9DA" font-size="12">AIS·07</text></g>
+<g transform="translate(852,492)"><path d="M0 -8 L8 0 L0 8 L-8 0 Z" fill="#0A2540" stroke="#43E6D4" stroke-width="1.4"/><text x="13" y="4" fill="#7FC9DA" font-size="12">AIS·03</text></g>
+<g transform="translate(706,540)"><path d="M0 -7 L7 0 L0 7 L-7 0 Z" fill="#0A2540" stroke="#43E6D4" stroke-width="1.2"/><text x="12" y="4" fill="#7FC9DA" font-size="12">AIS·11</text></g>
+</g>
+
+<g>
+<rect x="906" y="477" width="74" height="4" fill="#0C2238" opacity="0.30"/>
+<g stroke="#9FB6C2" stroke-width="1.5" opacity="0.15" stroke-dasharray="2 3"><line x1="922" y1="478" x2="922" y2="490"/><line x1="938" y1="478" x2="938" y2="492"/><line x1="952" y1="478" x2="952" y2="491"/><line x1="966" y1="478" x2="966" y2="488"/></g>
+<path d="M905 476 C912 470 924 468 944 468 L970 469 C975 470 978 472 979 476 Z" fill="url(#hull)" stroke="#3C6F92" stroke-width="0.8"/>
+<path d="M910 473 L978 473 L977 476 L911 476 Z" fill="#20506E"/>
+<path d="M934 468 L934 460 L958 460 L962 468 Z" fill="#B8C9D4"/>
+<rect x="938" y="462" width="18" height="4" fill="#15303D"/>
+<line x1="946" y1="460" x2="946" y2="450" stroke="#B7C7D1" stroke-width="1.4"/>
+<rect x="940" y="451" width="12" height="2" rx="1" fill="#C6D6DF"/>
+<circle cx="946" cy="450" r="2" fill="#43E6D4"/>
+<path d="M906 476 C930 478 956 477 979 476" fill="none" stroke="#EAF6FA" stroke-width="1.2" opacity="0.5"/>
+<path d="M905 475 C898 475 893 478 889 482 C895 480 901 480 906 481 Z" fill="#EAF6FA" opacity="0.5"/>
+<path d="M868 470 A52 52 0 0 1 988 470" fill="none" stroke="#F5A524" stroke-width="2" stroke-dasharray="4 6" opacity="0.9"/>
+<path d="M988 470 L980 462 M988 470 L980 478" stroke="#F5A524" stroke-width="2" fill="none"/>
+<text x="928" y="512" fill="#F7C06A" font-size="13" font-family="'DejaVu Sans Mono',monospace" text-anchor="middle">GIVE-WAY · COLREGS R15</text>
+</g>
+
+<g>
+<rect x="366" y="479" width="216" height="5" fill="#0C2238" opacity="0.32"/>
+<g stroke="#9FB6C2" stroke-width="2" opacity="0.16" stroke-dasharray="3 3">
+<line x1="408" y1="480" x2="408" y2="500"/><line x1="426" y1="480" x2="426" y2="504"/><line x1="444" y1="480" x2="444" y2="506"/><line x1="462" y1="480" x2="462" y2="507"/><line x1="480" y1="480" x2="480" y2="505"/><line x1="500" y1="480" x2="500" y2="502"/><line x1="516" y1="480" x2="516" y2="497"/>
+</g>
+<g stroke="#7FE6FF" stroke-width="1.5" opacity="0.20" stroke-dasharray="2 4">
+<line x1="436" y1="480" x2="436" y2="495"/><line x1="456" y1="480" x2="456" y2="496"/><line x1="476" y1="480" x2="476" y2="495"/><line x1="494" y1="480" x2="494" y2="493"/>
+</g>
+<line x1="462" y1="480" x2="462" y2="500" stroke="#43E6D4" stroke-width="1.5" opacity="0.26" stroke-dasharray="2 3"/>
+<path d="M360 467 C420 466 504 461 586 456 C585 465 583 472 580 478 L366 478 C362 475 360 471 360 467 Z" fill="url(#hull)" stroke="#3C6F92" stroke-width="1"/>
+<path d="M366 473 L580 473 L579 478 L367 478 Z" fill="#20506E"/>
+<path d="M372 469 C444 468 514 464 566 460" fill="none" stroke="#2DD4BF" stroke-width="1.4" opacity="0.85"/>
+<line x1="582" y1="458" x2="580" y2="477" stroke="#5A8AAA" stroke-width="1.4"/>
+<path d="M402 462 L402 450 L516 450 L524 462 Z" fill="#AEC2CE"/>
+<path d="M402 450 L402 462 L407 462 L407 450 Z" fill="#92A8B5"/>
+<g fill="#15303D"><rect x="411" y="453" width="9" height="6"/><rect x="424" y="453" width="9" height="6"/><rect x="437" y="453" width="9" height="6"/><rect x="450" y="453" width="9" height="6"/><rect x="463" y="453" width="9" height="6"/><rect x="476" y="453" width="9" height="6"/><rect x="489" y="453" width="9" height="6"/><rect x="502" y="453" width="7" height="6"/></g>
+<path d="M418 450 L418 441 L500 441 L510 450 Z" fill="#C6D6DF"/>
+<path d="M500 441 L510 450 L505 450 L497 441 Z" fill="#9DB3BF"/>
+<rect x="423" y="443" width="74" height="5" fill="#102A36"/>
+<g stroke="#2C5566" stroke-width="0.6"><line x1="444" y1="443" x2="444" y2="448"/><line x1="465" y1="443" x2="465" y2="448"/><line x1="486" y1="443" x2="486" y2="448"/></g>
+<rect x="405" y="441" width="11" height="9" fill="#1A3E59"/><rect x="405" y="444" width="11" height="2.4" fill="#2DD4BF" opacity="0.85"/>
+<line x1="459" y1="441" x2="459" y2="412" stroke="#B7C7D1" stroke-width="2"/>
+<rect x="445" y="416" width="28" height="3" rx="1.5" fill="#C6D6DF"/>
+<line x1="459" y1="414" x2="423" y2="440" stroke="#9FD8E8" stroke-width="0.5" opacity="0.4"/>
+<line x1="459" y1="414" x2="494" y2="440" stroke="#9FD8E8" stroke-width="0.5" opacity="0.4"/>
+<circle cx="459" cy="412" r="3" fill="#43E6D4"/>
+<circle cx="459" cy="408" r="1.6" fill="#FCE3B0"/>
+<g stroke="#C2D2DB" stroke-width="0.8" opacity="0.7"><line x1="528" y1="461" x2="578" y2="458"/><line x1="532" y1="461" x2="532" y2="458"/><line x1="544" y1="460" x2="544" y2="457"/><line x1="556" y1="460" x2="556" y2="457"/><line x1="568" y1="459" x2="568" y2="456"/></g>
+<rect x="534" y="462" width="14" height="4" fill="#1A3E59"/>
+<path d="M366 478 C440 480 520 479 580 478" fill="none" stroke="#EAF6FA" stroke-width="1.6" opacity="0.55"/>
+<path d="M578 476 C590 476 599 480 606 487 C597 484 587 484 578 486 Z" fill="#EAF6FA" opacity="0.6"/>
+<path d="M582 482 C606 486 628 492 662 503" fill="none" stroke="#CDEBF2" stroke-width="1.4" opacity="0.24"/>
+<path d="M582 485 C600 489 618 495 642 506" fill="none" stroke="#CDEBF2" stroke-width="1" opacity="0.14"/>
+<ellipse cx="366" cy="479" rx="15" ry="3" fill="#EAF6FA" opacity="0.22"/>
+</g>
+
+<g font-family="'DejaVu Sans Mono',monospace">
+<g transform="translate(40,40)"><rect x="0" y="0" width="20" height="2" fill="#43E6D4"/><rect x="0" y="0" width="2" height="20" fill="#43E6D4"/></g>
+<g transform="translate(1240,40)"><rect x="-20" y="0" width="20" height="2" fill="#43E6D4"/><rect x="-2" y="0" width="2" height="20" fill="#43E6D4"/></g>
+<g transform="translate(40,680)"><rect x="0" y="-2" width="20" height="2" fill="#43E6D4"/><rect x="0" y="-20" width="2" height="20" fill="#43E6D4"/></g>
+<g transform="translate(1240,680)"><rect x="-20" y="-2" width="20" height="2" fill="#43E6D4"/><rect x="-2" y="-20" width="2" height="20" fill="#43E6D4"/></g>
+</g>
+
+<g font-family="'DejaVu Sans Mono',monospace">
+<rect x="430" y="30" width="420" height="34" rx="6" fill="#06182B" opacity="0.55"/>
+<g stroke="#6FD6E6" stroke-width="1.4" opacity="0.7">
+<line x1="455" y1="50" x2="455" y2="58"/><line x1="495" y1="46" x2="495" y2="58"/><line x1="535" y1="50" x2="535" y2="58"/><line x1="575" y1="46" x2="575" y2="58"/><line x1="615" y1="50" x2="615" y2="58"/><line x1="655" y1="46" x2="655" y2="58"/><line x1="695" y1="50" x2="695" y2="58"/><line x1="735" y1="46" x2="735" y2="58"/><line x1="775" y1="50" x2="775" y2="58"/><line x1="815" y1="46" x2="815" y2="58"/>
+</g>
+<g fill="#7FC9DA" font-size="11"><text x="489" y="44">030</text><text x="569" y="44">060</text><text x="649" y="44">N</text><text x="729" y="44">120</text><text x="809" y="44">150</text></g>
+<path d="M640 60 L634 70 L646 70 Z" fill="#5EEAD4"/>
+<text x="640" y="26" fill="#9FE3D8" font-size="12" text-anchor="middle">HDG 047°</text>
+</g>
+
+<g font-family="'DejaVu Sans Mono',monospace">
+<rect x="900" y="40" width="180" height="24" rx="12" fill="#06182B" opacity="0.6"/>
+<circle cx="918" cy="52" r="4" fill="#43E6D4"/><text x="930" y="56" fill="#8FD2DE" font-size="12">BRIDGE LINK · 5005</text>
+<rect x="1090" y="40" width="150" height="24" rx="12" fill="#06182B" opacity="0.6"/>
+<circle cx="1108" cy="52" r="4" fill="#F5A524"/><text x="1120" y="56" fill="#8FD2DE" font-size="12">REC · MRQ 4K</text>
+</g>
+
+<g font-family="'DejaVu Sans Mono',monospace">
+<rect x="1040" y="92" width="200" height="192" rx="10" fill="#06182B" opacity="0.62"/>
+<text x="1058" y="116" fill="#9FE3D8" font-size="13">SENSOR SUITE</text>
+<text x="1222" y="116" fill="#7FB0C4" font-size="11" text-anchor="end">OWN-SHIP</text>
+<g font-size="12">
+<circle cx="1060" cy="138" r="4" fill="#F5C46A"/><text x="1072" y="142" fill="#D7E5EC">GNSS-RTK</text><text x="1222" y="142" fill="#7FB0C4" text-anchor="end">3D FIX</text>
+<circle cx="1060" cy="158" r="4" fill="#2DD4BF"/><text x="1072" y="162" fill="#D7E5EC">IMU · AHRS</text><text x="1222" y="162" fill="#7FB0C4" text-anchor="end">200 Hz</text>
+<circle cx="1060" cy="178" r="4" fill="#43E6D4"/><text x="1072" y="182" fill="#D7E5EC">RADAR</text><text x="1222" y="182" fill="#7FB0C4" text-anchor="end">X-BAND</text>
+<circle cx="1060" cy="198" r="4" fill="#7DF0E2"/><text x="1072" y="202" fill="#D7E5EC">LiDAR</text><text x="1222" y="202" fill="#7FB0C4" text-anchor="end">64-LINE</text>
+<circle cx="1060" cy="218" r="4" fill="#CFF2FA"/><text x="1072" y="222" fill="#D7E5EC">EO/IR CAM</text><text x="1222" y="222" fill="#7FB0C4" text-anchor="end">4K</text>
+<circle cx="1060" cy="238" r="4" fill="#2DD4BF"/><text x="1072" y="242" fill="#D7E5EC">AIS</text><text x="1222" y="242" fill="#7FB0C4" text-anchor="end">RX · TX</text>
+<circle cx="1060" cy="258" r="4" fill="#5EEAD4"/><text x="1072" y="262" fill="#D7E5EC">SONAR</text><text x="1222" y="262" fill="#7FB0C4" text-anchor="end">FWD-LOOK</text>
+</g>
+</g>
+
+<g font-family="'DejaVu Sans Mono',monospace">
+<rect x="40" y="556" width="300" height="128" rx="10" fill="#06182B" opacity="0.62"/>
+<rect x="40" y="556" width="300" height="26" rx="10" fill="#0E3346" opacity="0.8"/>
+<text x="58" y="574" fill="#9FE3D8" font-size="13">OWN-SHIP TELEMETRY</text>
+<text x="300" y="574" fill="#5EEAD4" font-size="12" text-anchor="end">DOLPHIN</text>
+<g font-size="13">
+<text x="58" y="606" fill="#7FB0C4">SOG</text><text x="180" y="606" fill="#E8F3F8">12.4 kn</text>
+<text x="58" y="630" fill="#7FB0C4">HDG</text><text x="180" y="630" fill="#E8F3F8">047°</text>
+<text x="58" y="654" fill="#7FB0C4">RUDDER</text><text x="180" y="654" fill="#E8F3F8">10° STBD</text>
+<text x="58" y="678" fill="#7FB0C4">SEA STATE</text><text x="180" y="678" fill="#E8F3F8">3 · MODERATE</text>
+</g>
+<rect x="232" y="596" width="92" height="22" rx="11" fill="#0E3A37"/><circle cx="248" cy="607" r="4" fill="#2DD4BF"/><text x="259" y="611" fill="#7FE9D8" font-size="12">AUTONOMOUS</text>
+</g>
+
+<g font-family="'DejaVu Sans Mono',monospace">
+<rect x="1040" y="520" width="200" height="164" rx="10" fill="#06182B" opacity="0.62"/>
+<text x="1058" y="544" fill="#9FE3D8" font-size="13">RADAR · ARPA</text>
+<text x="1222" y="544" fill="#7FB0C4" font-size="11" text-anchor="end">MONACO</text>
+<circle cx="1140" cy="612" r="52" fill="#04121E" stroke="#2C6072" stroke-width="1"/>
+<circle cx="1140" cy="612" r="34" fill="none" stroke="#2C6072" stroke-width="0.8" opacity="0.7"/>
+<circle cx="1140" cy="612" r="17" fill="none" stroke="#2C6072" stroke-width="0.8" opacity="0.7"/>
+<line x1="1088" y1="612" x2="1192" y2="612" stroke="#2C6072" stroke-width="0.7" opacity="0.6"/>
+<line x1="1140" y1="560" x2="1140" y2="664" stroke="#2C6072" stroke-width="0.7" opacity="0.6"/>
+<path d="M1140 612 L1140 560 A52 52 0 0 1 1186 588 Z" fill="#43E6D4" opacity="0.22"/>
+<line x1="1140" y1="612" x2="1186" y2="588" stroke="#5EEAD4" stroke-width="1.4" opacity="0.7"/>
+<circle cx="1162" cy="596" r="2.6" fill="#43E6D4"/><circle cx="1120" cy="586" r="2.6" fill="#43E6D4"/><circle cx="1158" cy="636" r="2.6" fill="#F5A524"/>
+<text x="1058" y="676" fill="#7FB0C4" font-size="11">CONTACTS 03 · CPA 0.4 nm</text>
+</g>
+
+<g>
+<g transform="translate(54,52)">
+<circle cx="20" cy="20" r="19" fill="#06182B" stroke="#2DD4BF" stroke-width="1.6"/>
+<path d="M20 7 L25 20 L20 17 L15 20 Z" fill="#5EEAD4"/>
+<path d="M8 26 Q14 20 20 26 T32 26" fill="none" stroke="#43E6D4" stroke-width="1.6"/>
+</g>
+<text x="104" y="62" font-size="34" font-weight="700" fill="#EAF3F8">Navi<tspan fill="#2DD4BF">Sense</tspan></text>
+<text x="105" y="84" font-family="'DejaVu Sans Mono',monospace" font-size="13" fill="#8FB6C6" letter-spacing="2">NAVISYN MARINE SOLUTIONS</text>
+</g>
+
+<text x="40" y="710" font-family="'DejaVu Sans Mono',monospace" font-size="13" fill="#6F96A8">Marine Autonomy Simulation Platform · CFD-validated physics · synthetic sensors · COLREGS</text>
+
+<rect x="1" y="1" width="1278" height="718" rx="20" fill="none" stroke="#2DD4BF" stroke-width="1.4" opacity="0.25"/>
+</g>
+</svg>
